@@ -1,0 +1,19 @@
+##########################################################################
+#
+#                foreign-data wrapper for JDBC
+#
+# Copyright (c) 2011, PostgreSQL Global Development Group
+#
+# This software is released under the PostgreSQL Licence
+#
+# Author: Atri Sharma <atri.jiit@gmail.com>
+#
+# IDENTIFICATION
+#                 jdbc_fdw/jdbc_fdw.control
+# 
+##########################################################################
+
+comment = 'Foreign data wrapper for querying JDBC'
+default_version = '1.0'
+module_pathname = '$libdir/jdbc_fdw'
+relocatable = true
