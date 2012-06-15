@@ -1,0 +1,1 @@
+IMPORTANT:Please note that,at the moment,for using jdbc_fdw,the user will have to manually set the classpaths:first,to JDBCUtils.class and second,to the JDBC driver which is being used for connecting and fetching data from the foreign database.
