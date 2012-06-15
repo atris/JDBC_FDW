@@ -178,7 +178,7 @@ JVMInitialization()
 	{
 		#ifdef JNI_VERSION_1_2
 				options[0].optionString =
-				"-Djava.class.path=" "/home/gitc/postgresql-9.1.3/contrib/jdbc_fdw/Test2:/usr/local/pgsql/share/java/postgresql-9.1-902.jdbc4.jar:.";
+				"-Djava.class.path=" "/home/gitc/postgresql-9.1.3/contrib/jdbc_fdw/JDBCClasses:/usr/local/pgsql/share/java/postgresql-9.1-902.jdbc4.jar:.";
 				vm_args.version = 0x00010002;
 				vm_args.options = options;
 				vm_args.nOptions = 1;
