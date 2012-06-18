@@ -82,7 +82,6 @@ typedef struct jdbcFdwExecutionState
 {
 	char		*query;
 	int		NumberOfRows;
-	int 		RowCount;
 	int 		NumberOfColumns;
 } jdbcFdwExecutionState;
 
@@ -137,8 +136,7 @@ ConvertStringToCString(jobject java_cstring)
 	JavaString=(*env)->FindClass(env, "java/lang/String");
 	if(!((*env)->IsInstanceOf(env, java_cstring, JavaString)))
 	{
-		elog(WARNING,"Object not an instance of String class");
-		exit(0);
+		elog(ERROR,"Object not an instance of String class");
 	}
 
 	StringPointer=(char*)(*env)->GetStringUTFChars(env, (jstring)java_cstring, 0);
@@ -178,7 +176,7 @@ JVMInitialization()
 	{
 		#ifdef JNI_VERSION_1_2
 				options[0].optionString =
-				"-Djava.class.path=" "/home/gitc/postgresql-9.1.3/contrib/jdbc_fdw/JDBCClasses:/usr/local/pgsql/share/java/postgresql-9.1-902.jdbc4.jar:.";
+				"-Djava.class.path=" "/home/gitc/postgresql-9.1.3/contrib/jdbc_fdw/JDBCClasses:/home/gitc/Downloads/jaybird-full-2.2.0.jar";
 				vm_args.version = 0x00010002;
 				vm_args.options = options;
 				vm_args.nOptions = 1;
@@ -531,7 +529,6 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	jmethodID		id_initialize;
 	jobjectArray		arg_array;
 	int 			counter = 0;
-	jfieldID 		id_numberofrows;
 	jfieldID 		id_numberofcolumns;
 
 	/* Fetch options  */
@@ -552,33 +549,26 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	/* Stash away the state info we have already */
 	festate = (jdbcFdwExecutionState *) palloc(sizeof(jdbcFdwExecutionState));
 	festate->query = query;
-	festate->NumberOfRows=0;
-	festate->RowCount=0;
-	festate->NumberOfColumns=0;
+	festate->NumberOfColumns = 0;
+	festate->NumberOfRows = 0;
 
 	/* Connect to the server and execute the query */
 	JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
 	if (JDBCUtilsClass == NULL) 
 	{
-		elog(WARNING,"JDBCUtilsClass is NULL");
+		elog(ERROR,"JDBCUtilsClass is NULL");
 	}
 
 	id_initialize = (*env)->GetMethodID(env, JDBCUtilsClass, "Initialize", "([Ljava/lang/String;)I");
 	if (id_initialize == NULL) 
 	{
-		elog(WARNING,"id_initialize is NULL");
-	}
-
-	id_numberofrows = (*env)->GetFieldID(env, JDBCUtilsClass, "NumberOfRows" , "I");
-	if(id_numberofrows == NULL)
-	{
-		elog(WARNING,"id_numberofrows is NULL");
+		elog(ERROR,"id_initialize is NULL");
 	}
 
 	id_numberofcolumns = (*env)->GetFieldID(env, JDBCUtilsClass, "NumberOfColumns" , "I");
 	if(id_numberofcolumns == NULL)
 	{
-		elog(WARNING,"id_numberofcolumns is NULL");
+		elog(ERROR,"id_numberofcolumns is NULL");
 	}
 
 	StringArray[0] = (*env)->NewStringUTF(env, (festate->query));
@@ -592,16 +582,12 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	arg_array = (*env)->NewObjectArray(env, 5, JavaString, StringArray[0]);
 	if (arg_array == NULL) 
 	{
-		elog(WARNING,"arg_array is NULL");
+		elog(ERROR,"arg_array is NULL");
 	}
 
 	for(counter=1;counter<5;counter++)
 	{		
-		if (StringArray[counter] == NULL) 
-		{
-			elog(WARNING, "StringArray[%d] is NULL",counter);
-		}
-		else
+		if (StringArray[counter] != NULL) 
 		{
 			(*env)->SetObjectArrayElement(env,arg_array,counter,StringArray[counter]);
 		}
@@ -609,14 +595,13 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	
 
 	java_call=(*env)->AllocObject(env,JDBCUtilsClass);
-	if(java_call==NULL)
+	if(java_call == NULL)
 	{
-		elog(WARNING,"java_call is NULL");
+		elog(ERROR,"java_call is NULL");
 	}
 
 	(*env)->CallObjectMethod(env,java_call,id_initialize,arg_array);
 	node->fdw_state = (void *) festate;
-	festate->NumberOfRows=(*env)->GetIntField(env, java_call, id_numberofrows);
 	festate->NumberOfColumns=(*env)->GetIntField(env, java_call, id_numberofcolumns);
 }
 
@@ -644,20 +629,21 @@ jdbcIterateForeignScan(ForeignScanState *node)
 	JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
 	if(JDBCUtilsClass == NULL) 
 	{
-		elog(WARNING,"JDBCUtilsClass is NULL");
+		elog(ERROR,"JDBCUtilsClass is NULL");
 	}
 
 	id_returnresultset = (*env)->GetMethodID(env, JDBCUtilsClass, "ReturnResultSet", "()[Ljava/lang/String;");
 	if (id_returnresultset == NULL) 
 	{
-		elog(WARNING,"id_returnresultset is NULL");
+		elog(ERROR,"id_returnresultset is NULL");
 	}
  
 	values=(char**)palloc(sizeof(char*)*(festate->NumberOfColumns));
+	
+	java_rowarray=(*env)->CallObjectMethod(env, java_call,id_returnresultset);
 
-	if(festate->RowCount < festate->NumberOfRows)
+	if(java_rowarray!=NULL)
 	{
-		java_rowarray=(*env)->CallObjectMethod(env, java_call,id_returnresultset);
 
 		for(i=0;i<(festate->NumberOfColumns);i++) 
 		{
@@ -666,8 +652,8 @@ jdbcIterateForeignScan(ForeignScanState *node)
 
 		tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att), values);
 		ExecStoreTuple(tuple, slot, InvalidBuffer, false);
-		++(festate->RowCount);
-	 }
+		++(festate->NumberOfRows);
+	}
 
 return (slot);
 }
@@ -686,13 +672,13 @@ jdbcEndForeignScan(ForeignScanState *node)
 	JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
 	if (JDBCUtilsClass == NULL) 
 	{
-		elog(WARNING,"JDBCUtilsClass is NULL");
+		elog(ERROR,"JDBCUtilsClass is NULL");
 	}
 
 	id_close = (*env)->GetMethodID(env, JDBCUtilsClass, "Close", "()V");
 	if (id_close == NULL) 
 	{
-		elog(WARNING,"id_close is NULL");
+		elog(ERROR,"id_close is NULL");
 	}
 
 	(*env)->CallObjectMethod(env,java_call,id_close);
