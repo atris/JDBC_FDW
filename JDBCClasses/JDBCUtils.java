@@ -28,15 +28,11 @@ Initialize(String[] ar1) throws IOException
   		dbmd = conn.getMetaData();
   		System.out.println("Connection to "+dbmd.getDatabaseProductName()+" "+dbmd.getDatabaseProductVersion()+" successful.\n");
 
-  		sql = conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+  		sql = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
   		rs = sql.executeQuery(ar1[0]);
 
   		r1=rs.getMetaData();
   		NumberOfColumns=r1.getColumnCount();
-
-  		rs.last();
-  		NumberOfRows=rs.getRow();
-  		rs.beforeFirst();
 
   		Iterate=new String[NumberOfColumns];
 	} catch (Exception e) 
@@ -52,8 +48,6 @@ ReturnResultSet()
 
 	try
 	{
-		if(!rs.wasNull())
-		{
 			if(rs.next())
 			{
 				for(i=1;i<=NumberOfColumns;i++)
@@ -61,16 +55,18 @@ ReturnResultSet()
     					Iterate[(i-1)]=rs.getString(i);
 				}
 
-			}
+				++NumberOfRows;				
 
-		}
+				return Iterate;
+
+			}
 
 	}catch (Exception e) 
 	{
 		e.printStackTrace();
 	}
 
-	return Iterate;
+return null;
 }
 public void 
 Close()
