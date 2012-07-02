@@ -24,11 +24,11 @@
    },
    "resources": {
       "bugtracker": {jdbc
-         "web": "https://github.com/dpage/jdbc_fdw/issues"
+         "web": "https://github.com/atris/JDBC_FDW/issues"
       },
       "repository": {
-        "url":  "git://github.com/dpage/jdbc_fdw.git",
-        "web":  "http://github.com/dpage/jdbc_fdw/",
+        "url":  "https://github.com/atris/JDBC_FDW.git",
+        "web":  "https://github.com/atris/JDBC_FDW",
         "type": "git"
       }
    },

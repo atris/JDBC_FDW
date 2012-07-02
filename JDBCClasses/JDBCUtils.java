@@ -6,11 +6,11 @@ public class JDBCUtils {
 	private Connection conn;
 	private int NumberOfColumns;
 	private int NumberOfRows;
+	private Statement sql;
 	private String[] Iterate;
-public int 
+public void 
 Initialize(String[] ar1) throws IOException
-{
-	Statement        sql;       
+{       
 	DatabaseMetaData dbmd;
 	ResultSetMetaData r1;
 	String url = ar1[2];
@@ -29,17 +29,32 @@ Initialize(String[] ar1) throws IOException
   		System.out.println("Connection to "+dbmd.getDatabaseProductName()+" "+dbmd.getDatabaseProductVersion()+" successful.\n");
 
   		sql = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+		try
+		{
+			if(ar1[5] == null)
+			{
+				sql.setQueryTimeout(5);
+			}
+			else
+			{
+				sql.setQueryTimeout(Integer.parseInt(ar1[5]));
+			}
+
+		}catch(Exception a)
+		 {
+		 	System.out.println("Query timeout shall not work");
+		 }
+
   		rs = sql.executeQuery(ar1[0]);
 
   		r1=rs.getMetaData();
   		NumberOfColumns=r1.getColumnCount();
 
   		Iterate=new String[NumberOfColumns];
-	} catch (Exception e) 
+	} catch (Exception e)
 	  {
   	  	e.printStackTrace();
 	  }
-return NumberOfColumns;
 }
 public String[] 
 ReturnResultSet()
@@ -48,23 +63,22 @@ ReturnResultSet()
 
 	try
 	{
-			if(rs.next())
+		if(rs.next())
+		{
+			for(i=1;i<=NumberOfColumns;i++)
 			{
-				for(i=1;i<=NumberOfColumns;i++)
-				{
-    					Iterate[(i-1)]=rs.getString(i);
-				}
-
-				++NumberOfRows;				
-
-				return Iterate;
-
+    				Iterate[(i-1)]=rs.getString(i);
 			}
 
-	}catch (Exception e) 
-	{
+			++NumberOfRows;				
+
+			return Iterate;
+		}
+
+	}catch (Exception e)
+	 {
 		e.printStackTrace();
-	}
+	 }
 
 return null;
 }
@@ -79,5 +93,20 @@ Close()
 	 {
 	 	e.printStackTrace();
 	 }
+}
+public void 
+Cancel()
+{
+System.out.println("\n In cancel");
+	try
+	{
+			sql.cancel();
+			rs.close();
+			conn.close();
+  
+	}catch(Exception a)
+	 {
+		a.printStackTrace();
+  	 }
 }
 }

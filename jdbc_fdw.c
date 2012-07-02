@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <libpq/pqsignal.h>
 #include "funcapi.h"
 #include "access/reloptions.h"
 #include "catalog/pg_foreign_server.h"
@@ -44,6 +45,7 @@ PG_MODULE_MAGIC;
 static JNIEnv *env;
 static JavaVM *jvm;
 static jobject java_call;   /* Used for calling methods of JDBCUtils Java class */
+static bool InterruptFlag;   /* Used for checking for SIGINT interrupt */
 
 
 /*
@@ -65,6 +67,7 @@ static struct jdbcFdwOption valid_options[] =
 	/* Connection options */
 	{ "drivername",		ForeignServerRelationId },
 	{ "url",		ForeignServerRelationId },
+	{ "querytimeout",	ForeignServerRelationId },
 	{ "username",		UserMappingRelationId },
 	{ "password",		UserMappingRelationId },
 	{ "query",		ForeignTableRelationId },
@@ -108,7 +111,7 @@ static void jdbcEndForeignScan(ForeignScanState *node);
  * Helper functions
  */
 static bool jdbcIsValidOption(const char *option, Oid context);
-static void jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, char **username, char **password, char **query, char **table);
+static void jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytimeout, char **username, char **password, char **query, char **table);
 /*
  * Uses a String object's content to create an instance of C String
  */
@@ -121,6 +124,14 @@ static void JVMInitialization();
  * JVM destroy function
  */
 static void DestroyJVM();
+/*
+ * SIGINT interrupt handler
+ */
+static void SIGINTInterruptHandler(int);
+/*
+ * SIGINT interrupt check and process function
+ */
+static void SIGINTInterruptCheckProcess();
 
 /*
  * ConvertStringToCString
@@ -176,7 +187,7 @@ JVMInitialization()
 	{
 		#ifdef JNI_VERSION_1_2
 				options[0].optionString =
-				"-Djava.class.path=" "/home/gitc/postgresql-9.1.3/contrib/jdbc_fdw/JDBCClasses:/home/gitc/Downloads/jaybird-full-2.2.0.jar";
+				"-Djava.class.path=" "/home/gitc/postgresql-9.1.3/contrib/jdbc_fdw/JDBCClasses:/home/gitc/Downloads/sqlite-jdbc-3.7.2.jar";
 				vm_args.version = 0x00010002;
 				vm_args.options = options;
 				vm_args.nOptions = 1;
@@ -202,12 +213,56 @@ JVMInitialization()
 			exit(1);
 		}
 
+		InterruptFlag = false;
 		/* Register an on_proc_exit handler that shuts down the JVM.*/
 		on_proc_exit(DestroyJVM,0);
-		FunctionCallCheck=true;
+		FunctionCallCheck = true;
+
+		pqsignal(SIGINT, SIGINTInterruptHandler);
 	}
 }
-	
+
+/*
+ * SIGINTInterruptCheckProcess
+ *		Checks and processes if SIGINT interrupt occurs
+ */
+static void
+SIGINTInterruptCheckProcess()
+{
+	if(InterruptFlag == true)
+	{
+		jclass JDBCUtilsClass;
+		jmethodID id_cancel;
+
+		JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
+		if (JDBCUtilsClass == NULL) 
+		{
+			elog(ERROR,"JDBCUtilsClass is NULL");
+		}
+
+		id_cancel = (*env)->GetMethodID(env, JDBCUtilsClass, "Cancel", "()V");
+		if (id_cancel == NULL) 
+		{
+			elog(ERROR,"id_cancel is NULL");
+		}
+		
+		(*env)->CallObjectMethod(env,java_call,id_cancel);
+
+		InterruptFlag = false;
+		elog(ERROR,"Query has been cancelled");
+	}
+}
+
+/*
+ * SIGINTInterruptHandler
+ *		Handles SIGINT interrupt
+ */
+static void
+SIGINTInterruptHandler(int sig)
+{
+	InterruptFlag = true;
+}
+
 /*
  * Foreign-data wrapper handler function: return a struct with pointers
  * to my callback routines.
@@ -229,7 +284,7 @@ jdbc_fdw_handler(PG_FUNCTION_ARGS)
 
 /*
  * Validate the generic options given to a FOREIGN DATA WRAPPER, SERVER,
- * USER MAPPING or FOREIGN TABLE that uses file_fdw.
+ * USER MAPPING or FOREIGN TABLE that uses jdbc_fdw.
  *
  * Raise an ERROR if the option or its value is considered invalid.
  */
@@ -244,6 +299,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 	char		*svr_password = NULL;
 	char		*svr_query = NULL;
 	char		*svr_table = NULL;
+	int 		svr_querytimeout = 0;
 	ListCell	*cell;
 
 	/*
@@ -287,7 +343,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_drivername = defGetString(def);
 		}
-		else if (strcmp(def->defname, "url") == 0)
+		if (strcmp(def->defname, "url") == 0)
 		{
 			if (svr_url)
 				ereport(ERROR, 
@@ -296,6 +352,15 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 					));
 
 			svr_url = defGetString(def);
+		}
+		if (strcmp(def->defname, "querytimeout") == 0)
+		{
+			if (svr_querytimeout)
+				ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR), 
+					errmsg("conflicting or redundant options: querytimeout (%s)", defGetString(def))
+					));
+
+			svr_querytimeout = atoi(defGetString(def));
 		}
 		if (strcmp(def->defname, "username") == 0)
 		{
@@ -374,7 +439,7 @@ jdbcIsValidOption(const char *option, Oid context)
  * Fetch the options for a jdbc_fdw foreign table.
  */
 static void
-jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, char **username, char **password, char **query, char **table)
+jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytimeout, char **username, char **password, char **query, char **table)
 {
 	ForeignTable	*f_table;
 	ForeignServer	*f_server;
@@ -407,6 +472,11 @@ jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, char **usernam
 		if (strcmp(def->defname, "username") == 0)
 		{
 			*username = defGetString(def);
+		}
+
+		if (strcmp(def->defname, "querytimeout") == 0)
+		{
+			*querytimeout = atoi(defGetString(def));
 		}
 
 		if (strcmp(def->defname, "password") == 0)
@@ -463,13 +533,16 @@ jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 	char 		*svr_query = NULL;
 	char 		*svr_table = NULL;
 	char 		*svr_url = NULL;
+	int 		svr_querytimeout;
 	char		*query;
 
 	fdwplan = makeNode(FdwPlan);
 	JVMInitialization();
 
+	SIGINTInterruptCheckProcess();
+
 	/* Fetch options */
-	jdbcGetOptions(foreigntableid, &svr_drivername, &svr_url, &svr_username, &svr_password, &svr_query, &svr_table);
+	jdbcGetOptions(foreigntableid, &svr_drivername, &svr_url, &svr_querytimeout, &svr_username, &svr_password, &svr_query, &svr_table);
 	
 	/* Build the query */
 	if (svr_query)
@@ -503,9 +576,11 @@ jdbcExplainForeignScan(ForeignScanState *node, ExplainState *es)
 	char		    *svr_password = NULL;
 	char		    *svr_query = NULL;
 	char		    *svr_table = NULL;
+	int 		    svr_querytimeout;
 
 	/* Fetch options  */
-	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_drivername, &svr_url, &svr_username, &svr_password, &svr_query, &svr_table);
+	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_drivername, &svr_url, &svr_querytimeout, &svr_username, &svr_password, &svr_query, &svr_table);
+	SIGINTInterruptCheckProcess();
 }
 
 /*
@@ -521,6 +596,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	char			*svr_password = NULL;
 	char			*svr_query = NULL;
 	char			*svr_table = NULL;
+	int 			svr_querytimeout;
 	jdbcFdwExecutionState   *festate;
 	char			*query;
 	jclass 			JDBCUtilsClass;
@@ -530,9 +606,12 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	jobjectArray		arg_array;
 	int 			counter = 0;
 	jfieldID 		id_numberofcolumns;
+	char 			*querytimeoutstr = NULL;
+
+	SIGINTInterruptCheckProcess();
 
 	/* Fetch options  */
-	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_drivername, &svr_url, &svr_username, &svr_password, &svr_query, &svr_table);
+	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_drivername, &svr_url, &svr_querytimeout, &svr_username, &svr_password, &svr_query, &svr_table);
 
 	/* Build the query */
 	if (svr_query){
@@ -559,7 +638,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 		elog(ERROR,"JDBCUtilsClass is NULL");
 	}
 
-	id_initialize = (*env)->GetMethodID(env, JDBCUtilsClass, "Initialize", "([Ljava/lang/String;)I");
+	id_initialize = (*env)->GetMethodID(env, JDBCUtilsClass, "Initialize", "([Ljava/lang/String;)V");
 	if (id_initialize == NULL) 
 	{
 		elog(ERROR,"id_initialize is NULL");
@@ -570,30 +649,29 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	{
 		elog(ERROR,"id_numberofcolumns is NULL");
 	}
-
+	
+	querytimeoutstr=(char*)palloc(sizeof(int));
+	snprintf(querytimeoutstr,sizeof(int),"%d",svr_querytimeout);
 	StringArray[0] = (*env)->NewStringUTF(env, (festate->query));
 	StringArray[1] = (*env)->NewStringUTF(env, svr_drivername);
 	StringArray[2] = (*env)->NewStringUTF(env, svr_url);
 	StringArray[3] = (*env)->NewStringUTF(env, svr_username);
 	StringArray[4] = (*env)->NewStringUTF(env, svr_password);
+	StringArray[5] = (*env)->NewStringUTF(env, querytimeoutstr);
 
 	JavaString= (*env)->FindClass(env, "java/lang/String");
 
-	arg_array = (*env)->NewObjectArray(env, 5, JavaString, StringArray[0]);
-	if (arg_array == NULL) 
+	arg_array = (*env)->NewObjectArray(env, 6, JavaString, StringArray[0]);
+	if (arg_array == NULL)
 	{
 		elog(ERROR,"arg_array is NULL");
 	}
 
-	for(counter=1;counter<5;counter++)
+	for(counter=1;counter<6;counter++)
 	{		
-		if (StringArray[counter] != NULL) 
-		{
 			(*env)->SetObjectArrayElement(env,arg_array,counter,StringArray[counter]);
-		}
 	}
 	
-
 	java_call=(*env)->AllocObject(env,JDBCUtilsClass);
 	if(java_call == NULL)
 	{
@@ -624,6 +702,7 @@ jdbcIterateForeignScan(ForeignScanState *node)
 
 	/* Cleanup */
 	ExecClearTuple(slot);
+	SIGINTInterruptCheckProcess();
 
 
 	JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
@@ -669,6 +748,8 @@ jdbcEndForeignScan(ForeignScanState *node)
 	jclass 				JDBCUtilsClass;
 	jdbcFdwExecutionState *festate = (jdbcFdwExecutionState *) node->fdw_state;
 
+	SIGINTInterruptCheckProcess();
+
 	JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
 	if (JDBCUtilsClass == NULL) 
 	{
@@ -696,5 +777,5 @@ jdbcEndForeignScan(ForeignScanState *node)
 static void
 jdbcReScanForeignScan(ForeignScanState *node)
 {
-
+SIGINTInterruptCheckProcess();
 }

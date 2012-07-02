@@ -1,3 +1,79 @@
 IMPORTANT:Please note that,at the moment,for using jdbc_fdw,the user will have to manually set the classpaths:first,to JDBCUtils.class and second,to the JDBC driver which is being used for connecting and fetching data from the foreign database.
 
+Installing
+----------
+
 Please place the JDBC_FDW folder in the /contrib directory before running make install.
+
+The steps for installing jdbc_fdw are:
+
+1)Ensure that JDK is correctly installed and its path is exported correctly.
+2)Run make install(You may have to change to root before running it).
+3)Ensure that make install completes correctly(without warnings or errors).
+
+Usage
+-----
+
+The following parameters can be set on a JDBC foreign server:
+
+drivername:	The name of the JDBC driver e.g.(org.postgresql.Driver).
+		Note that drivername has to be specified for jdbc_fdw
+		to work i.e. it is compulsory.
+
+url:	        The JDBC URL that shall be used to connect to the foreign database.
+	        Note that URL has to be specified for jdbc_fdw
+		to work i.e. it is compulsory.
+
+The following parameter can be set on a JDBC foreign table:
+
+query:		An SQL query to define the data set on the JDBC server.
+
+table:		The name of a table (quoted and qualified as required)
+		on the foreign database table.
+
+The following parameter can be set on a user mapping for a JDBC
+foreign server:
+
+username:	The username to use when connecting to foreign database.
+		Default <none>
+
+password:	The password to authenticate to the foreign database with.
+		Default: <none>
+
+Example
+-------
+
+-- Install the extension
+CREATE EXTENSION jdbc_fdw;
+
+-- Create the foreign server, a pointer to the JDBC server.
+CREATE SERVER jdbc_serv3 
+    FOREIGN DATA WRAPPER jdbc_fdw 
+    OPTIONS(drivername 'org.postgresql.Driver',url 'jdbc:postgresql:gitc');
+
+-- Create one or more foreign tables on the JDBC server.
+CREATE FOREIGN TABLE test12(a text,b text,c text) 
+    SERVER jdbc_serv3 
+    OPTIONS(query 'SELECT * FROM test11');
+
+-- Create a user mapping to tell the FDW the username/password to 
+-- use to connect to foreign database. This could be done on a per-
+-- role basis.
+CREATE USER MAPPING FOR gitc
+    SERVER jdbc_serv3
+    OPTIONS(username 'gitc',password '');
+
+Features
+--------
+
+1)jdbc_fdw can connect and fetch data to PostgreSQL from any data source that supports JDBC.
+2)Basic query cancellation is supported.
+
+--
+Atri Sharma
+atri.jiit@gmail.com
+
+
+
+
+

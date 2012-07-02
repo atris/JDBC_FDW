@@ -23,10 +23,7 @@ REGRESS = jdbc_fdw
 
 JDBC_CONFIG = jdbc_config
 
-export CFLAGS="$CFLAGS -ljvm"
-export CXXFLAGS="$CXXFLAGS -ljvm"
-
-
+SHLIB_LINK= -ljvm
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
