@@ -651,7 +651,9 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	}
 	
 	querytimeoutstr=(char*)palloc(sizeof(int));
+
 	snprintf(querytimeoutstr,sizeof(int),"%d",svr_querytimeout);
+
 	StringArray[0] = (*env)->NewStringUTF(env, (festate->query));
 	StringArray[1] = (*env)->NewStringUTF(env, svr_drivername);
 	StringArray[2] = (*env)->NewStringUTF(env, svr_url);
@@ -702,6 +704,7 @@ jdbcIterateForeignScan(ForeignScanState *node)
 
 	/* Cleanup */
 	ExecClearTuple(slot);
+
 	SIGINTInterruptCheckProcess();
 
 
@@ -726,7 +729,7 @@ jdbcIterateForeignScan(ForeignScanState *node)
 
 		for(i=0;i<(festate->NumberOfColumns);i++) 
 		{
-        		values[i]=ConvertStringToCString((jobject)(*env)->GetObjectArrayElement(env,java_rowarray, i));
+        		values[i]=ConvertStringToCString((jobject)(*env)->GetObjectArrayElement(env,java_rowarray,i));
     		}
 
 		tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att), values);

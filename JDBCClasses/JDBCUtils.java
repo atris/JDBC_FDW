@@ -97,7 +97,6 @@ Close()
 public void 
 Cancel()
 {
-System.out.println("\n In cancel");
 	try
 	{
 			sql.cancel();
