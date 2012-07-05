@@ -1,18 +1,42 @@
+/*-------------------------------------------------------------------------
+ *
+ *		  foreign-data wrapper for JDBC
+ *
+ * Copyright (c) 2012, PostgreSQL Global Development Group
+ *
+ * This software is released under the PostgreSQL Licence
+ *
+ * Author: Atri Sharma <atri.jiit@gmail.com>
+ *
+ * IDENTIFICATION
+ *		  jdbc_fdw/JDBCUtils.java
+ *
+ *-------------------------------------------------------------------------
+ */
+
 import java.sql.*;
 import java.text.*;
 import java.io.*;
-public class JDBCUtils {
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.net.MalformedURLException;
+import java.util.*;
+public class JDBCUtils{
 	private ResultSet rs;
 	private Connection conn;
 	private int NumberOfColumns;
 	private int NumberOfRows;
 	private Statement sql;
 	private String[] Iterate;
-public void 
+	private JDBCDriverLoader JDBC_Driver_Loader;
+public void
 Initialize(String[] ar1) throws IOException
 {       
 	DatabaseMetaData dbmd;
 	ResultSetMetaData r1;
+	Properties JDBCProperties;
+	Class JDBCDriverClass;
+	Driver JDBCDriver;
 	String url = ar1[2];
   	String userName = ar1[3]; 
   	String password = ar1[4];
@@ -22,9 +46,15 @@ Initialize(String[] ar1) throws IOException
 
   	try 
 	{
-  		Class.forName(ar1[1]);
-  		conn = DriverManager.getConnection(url, userName, password);
+		JDBC_Driver_Loader = new JDBCDriverLoader(new URL[]{new URL("jar:file://"+ar1[6]+"!/")});
+		JDBCDriverClass = JDBC_Driver_Loader.loadClass(ar1[1]);
+		JDBCDriver = (Driver)JDBCDriverClass.newInstance();
+		JDBCProperties = new Properties();
+		JDBCProperties.put("user", userName);
+		JDBCProperties.put("password", password);
 
+		conn = JDBCDriver.connect(url, JDBCProperties);
+  		
   		dbmd = conn.getMetaData();
   		System.out.println("Connection to "+dbmd.getDatabaseProductName()+" "+dbmd.getDatabaseProductVersion()+" successful.\n");
 
@@ -102,7 +132,6 @@ Cancel()
 			sql.cancel();
 			rs.close();
 			conn.close();
-  
 	}catch(Exception a)
 	 {
 		a.printStackTrace();

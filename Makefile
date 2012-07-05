@@ -23,8 +23,23 @@ REGRESS = jdbc_fdw
 
 JDBC_CONFIG = jdbc_config
 
-SHLIB_LINK= -ljvm
+SHLIB_LINK = -ljvm
 
+TRGTS = JAVAFILES
+
+JAVA_SOURCES = \
+        JDBCUtils.java \
+	JDBCDriverLoader.java \
+ 
+PG_CPPFLAGS=-D'PKG_LIB_DIR=$(pkglibdir)'
+
+JFLAGS = -d $(pkglibdir)
+
+all:$(TRGTS)
+
+JAVAFILES:
+	javac $(JFLAGS) $(JAVA_SOURCES)
+ 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
@@ -35,4 +50,5 @@ top_builddir = ../..
 include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
+
 
