@@ -205,15 +205,15 @@ JVMInitialization()
 
 	if(FunctionCallCheck==false)
 	{
-				snprintf(classpath,strlen(strpkglibdir)+19,"-Djava.class.path=%s",strpkglibdir);
-				options[0].optionString = classpath;
-				vm_args.version = 0x00010002;
-				vm_args.options = options;
-				vm_args.nOptions = 1;
-				vm_args.ignoreUnrecognized = JNI_TRUE;
+		snprintf(classpath,strlen(strpkglibdir)+19,"-Djava.class.path=%s",strpkglibdir);
+		options[0].optionString = classpath;
+		vm_args.version = 0x00010002;
+		vm_args.options = options;
+		vm_args.nOptions = 1;
+		vm_args.ignoreUnrecognized = JNI_TRUE;
 
-				/* Create the Java VM */
-				res = JNI_CreateJavaVM(&jvm, (void**)&env, &vm_args);
+		/* Create the Java VM */
+		res = JNI_CreateJavaVM(&jvm, (void**)&env, &vm_args);
 		if (res < 0) 
 		{
 			ereport(ERROR,
