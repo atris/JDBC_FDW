@@ -28,28 +28,37 @@ public class JDBCUtils{
 	private int NumberOfRows;
 	private Statement sql;
 	private String[] Iterate;
-	private JDBCDriverLoader JDBC_Driver_Loader;
+	private static JDBCDriverLoader JDBC_Driver_Loader;
 public void
 Initialize(String[] ar1) throws IOException
 {       
 	DatabaseMetaData dbmd;
 	ResultSetMetaData r1;
 	Properties JDBCProperties;
-	Class JDBCDriverClass;
-	Driver JDBCDriver;
+	Class JDBCDriverClass = null;
+	File JarFile = new File(ar1[6]);
+	Driver JDBCDriver = null;
 	String url = ar1[2];
   	String userName = ar1[3]; 
   	String password = ar1[4];
 
-  	NumberOfColumns=0;
-  	conn=null;
+  	NumberOfColumns = 0;
+  	conn = null;
 
   	try 
 	{
-		JDBC_Driver_Loader = new JDBCDriverLoader(new URL[]{new URL("jar:file://"+ar1[6]+"!/")});
+		if(JDBC_Driver_Loader == null){
+			JDBC_Driver_Loader = new JDBCDriverLoader(new URL[]{JarFile.toURI().toURL()});
+		}
+		else if(JDBC_Driver_Loader.CheckIfClassIsLoaded(ar1[1]) == null){
+			JDBC_Driver_Loader.addPath("jar:file://"+ar1[6]+"!/");
+		}
+
 		JDBCDriverClass = JDBC_Driver_Loader.loadClass(ar1[1]);
+
 		JDBCDriver = (Driver)JDBCDriverClass.newInstance();
 		JDBCProperties = new Properties();
+
 		JDBCProperties.put("user", userName);
 		JDBCProperties.put("password", password);
 
@@ -79,12 +88,13 @@ Initialize(String[] ar1) throws IOException
 
   		r1=rs.getMetaData();
   		NumberOfColumns=r1.getColumnCount();
-
   		Iterate=new String[NumberOfColumns];
-	} catch (Exception e)
+	}catch (Exception e)
 	  {
   	  	e.printStackTrace();
 	  }
+	catch(UnsatisfiedLinkError a){
+	}
 }
 public String[] 
 ReturnResultSet()
@@ -129,9 +139,9 @@ Cancel()
 {
 	try
 	{
-			sql.cancel();
-			rs.close();
-			conn.close();
+		sql.cancel();
+		rs.close();
+		conn.close();
 	}catch(Exception a)
 	 {
 		a.printStackTrace();

@@ -30,4 +30,9 @@ addPath(String path) throws MalformedURLException
 {
 	addURL (new URL (path));
 }
+public Class
+CheckIfClassIsLoaded(String ClassName)
+{
+	return findLoadedClass(ClassName);
+}
 }

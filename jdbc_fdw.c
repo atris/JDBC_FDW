@@ -38,6 +38,13 @@
 #include "utils/builtins.h"
 #include "utils/rel.h"
 #include "storage/ipc.h"
+
+#if (PG_VERSION_NUM >= 90200)
+#include "optimizer/pathnode.h"
+#include "optimizer/restrictinfo.h"
+#include "optimizer/planmain.h"
+#endif
+
 #include "jni.h"
 
 #define Str(arg) #arg
@@ -106,7 +113,16 @@ PG_FUNCTION_INFO_V1(jdbc_fdw_validator);
 /*
  * FDW callback routines
  */
+#if (PG_VERSION_NUM < 90200)
 static FdwPlan *jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel);
+#endif
+
+#if (PG_VERSION_NUM >= 90200)
+static void jdbcGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid);
+static void jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid);
+static ForeignScan *jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses);
+#endif
+
 static void jdbcExplainForeignScan(ForeignScanState *node, ExplainState *es);
 static void jdbcBeginForeignScan(ForeignScanState *node, int eflags);
 static TupleTableSlot *jdbcIterateForeignScan(ForeignScanState *node);
@@ -183,16 +199,12 @@ JVMInitialization()
 	jint res=-100;   /* Initializing the value of res so that we can check it later to see whether JVM has been correctly created or not */
 	JavaVMInitArgs vm_args;
 	JavaVMOption options[1];
-		#ifndef JNI_VERSION_1_2
-				JDK1_1InitArgs vm_args;
-		#endif
 	static bool FunctionCallCheck=false;   /* This flag safeguards against multiple calls of JVMInitialization().*/
 	char strpkglibdir[]=STR_PKGLIBDIR;
 	char classpath[1024];
 
 	if(FunctionCallCheck==false)
 	{
-		#ifdef JNI_VERSION_1_2
 				snprintf(classpath,strlen(strpkglibdir)+19,"-Djava.class.path=%s",strpkglibdir);
 				options[0].optionString = classpath;
 				vm_args.version = 0x00010002;
@@ -202,16 +214,6 @@ JVMInitialization()
 
 				/* Create the Java VM */
 				res = JNI_CreateJavaVM(&jvm, (void**)&env, &vm_args);
-		#else
-				vm_args.version = 0x00010001;
-				JNI_GetDefaultJavaVMInitArgs(&vm_args);
-				sprintf(classpath, "%s%c%s",
-				vm_args.classpath, PATH_SEPARATOR, USER_CLASSPATH);
-				vm_args.classpath = classpath;
-
-				/* Create the Java VM */
-				res = JNI_CreateJavaVM(&jvm, &env, &vm_args);
-		#endif
 		if (res < 0) 
 		{
 			ereport(ERROR,
@@ -278,8 +280,17 @@ Datum
 jdbc_fdw_handler(PG_FUNCTION_ARGS)
 {
 	FdwRoutine *fdwroutine = makeNode(FdwRoutine);
-
+	
+	#if (PG_VERSION_NUM < 90200)
 	fdwroutine->PlanForeignScan = jdbcPlanForeignScan;
+	#endif
+
+	#if (PG_VERSION_NUM >= 90200)
+	fdwroutine->GetForeignRelSize = jdbcGetForeignRelSize;
+	fdwroutine->GetForeignPaths = jdbcGetForeignPaths;
+	fdwroutine->GetForeignPlan = jdbcGetForeignPlan;
+	#endif
+
 	fdwroutine->ExplainForeignScan = jdbcExplainForeignScan;
 	fdwroutine->BeginForeignScan = jdbcBeginForeignScan;
 	fdwroutine->IterateForeignScan = jdbcIterateForeignScan;
@@ -434,7 +445,6 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
-
 /*
  * Check if the provided option is one of the valid options.
  * context is the Oid of the catalog holding the object the option is for.
@@ -545,6 +555,7 @@ jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytime
 		));
 }
 
+#if (PG_VERSION_NUM < 90200)
 /*
  * jdbcPlanForeignScan
  *		Create a FdwPlan for a scan on the foreign table
@@ -592,6 +603,7 @@ jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 
 	return fdwplan;
 }
+#endif
 
 /*
  * jdbcExplainForeignScan
@@ -828,3 +840,50 @@ jdbcReScanForeignScan(ForeignScanState *node)
 {
 SIGINTInterruptCheckProcess();
 }
+
+#if (PG_VERSION_NUM >= 90200)
+/*
+ * jdbcGetForeignPaths
+ *		(9.2+) Get the foreign paths
+ */
+static void
+jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
+{
+	Cost 		startup_cost = 0;
+	Cost 		total_cost = 0;
+
+	SIGINTInterruptCheckProcess();
+
+	/* Create a ForeignPath node and add it as only possible path */
+	add_path(baserel, (Path*)create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost, NIL, NULL, NIL)); 
+}
+
+/*
+ * jdbcGetForeignPlan
+ *		(9.2+) Get a foreign scan plan node
+ */
+static ForeignScan *
+jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses)
+{
+	Index 		scan_relid = baserel->relid;
+
+	JVMInitialization();
+
+	SIGINTInterruptCheckProcess();
+
+	scan_clauses = extract_actual_clauses(scan_clauses, false);
+
+	/* Create the ForeignScan node */
+	return make_foreignscan(tlist, scan_clauses, scan_relid, NIL,NIL); 
+}
+
+/*
+ * jdbcGetForeignRelSize
+ *		(9.2+) Get a foreign scan plan node
+ */
+static void
+jdbcGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
+{
+SIGINTInterruptCheckProcess();	
+}
+#endif
