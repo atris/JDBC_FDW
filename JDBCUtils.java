@@ -95,7 +95,7 @@ Initialize(String[] ar1) throws IOException
 	  }
 }
 public String[] 
-ReturnResultSet() throws InterruptedException
+ReturnResultSet()
 {
 	int i = 0;
 
