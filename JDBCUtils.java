@@ -93,11 +93,9 @@ Initialize(String[] ar1) throws IOException
 	  {
   	  	e.printStackTrace();
 	  }
-	catch(UnsatisfiedLinkError a){
-	}
 }
 public String[] 
-ReturnResultSet()
+ReturnResultSet() throws InterruptedException
 {
 	int i = 0;
 
@@ -105,9 +103,9 @@ ReturnResultSet()
 	{
 		if(rs.next())
 		{
-			for(i=1;i<=NumberOfColumns;i++)
+			for(i=0;i<NumberOfColumns;i++)
 			{
-    				Iterate[(i-1)]=rs.getString(i);
+    				Iterate[i]=rs.getString(i+1);
 			}
 
 			++NumberOfRows;				
@@ -129,6 +127,9 @@ Close()
 	{
 		rs.close();
 		conn.close();
+		rs = null;
+		conn = null;
+		Iterate = null;
 	}catch (Exception e) 
 	 {
 	 	e.printStackTrace();
@@ -139,7 +140,6 @@ Cancel()
 {
 	try
 	{
-		sql.cancel();
 		rs.close();
 		conn.close();
 	}catch(Exception a)
