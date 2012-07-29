@@ -330,7 +330,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 	char		*svr_query = NULL;
 	char		*svr_table = NULL;
 	char 		*svr_jarfilename = NULL;
-	int 		svr_querytimeout = 0;
+	int 		svr_querytimeout = 0;	
 	ListCell	*cell;
 
 	/*
@@ -454,6 +454,38 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 		}
 	}
 
+	if(catalog == ForeignServerRelationId && svr_drivername == NULL)
+	{
+		ereport(ERROR,
+		(errcode(ERRCODE_SYNTAX_ERROR),
+		errmsg("Driver name must be specified")
+		));
+	}
+	
+	if(catalog == ForeignServerRelationId && svr_url == NULL)
+	{
+		ereport(ERROR,
+		(errcode(ERRCODE_SYNTAX_ERROR),
+		errmsg("URL must be specified")
+		));
+	}
+
+	if(catalog == ForeignServerRelationId && svr_jarfilename == NULL)
+	{
+		ereport(ERROR,
+		(errcode(ERRCODE_SYNTAX_ERROR),
+		errmsg("JAR file name must be specified")
+		));
+	}
+
+	if(catalog == ForeignTableRelationId && svr_query == NULL && svr_table == NULL)
+	{
+		ereport(ERROR,
+		(errcode(ERRCODE_SYNTAX_ERROR),
+		errmsg("either a table or a query must be specified")
+		));
+	}
+
 	PG_RETURN_VOID();
 }
 
@@ -543,28 +575,6 @@ jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytime
 			*url = defGetString(def);
 		}
 	}
-
-	/* Check we have the options we need to proceed */
-	if (!*table && !*query)
-		ereport(ERROR,
-		(errcode(ERRCODE_SYNTAX_ERROR),
-		errmsg("either a table or a query must be specified")
-		));
-	if(!*drivername)
-		ereport(ERROR,
-		(errcode(ERRCODE_SYNTAX_ERROR),
-		errmsg("Driver name must be specified")
-		));
-	if(!*url)
-		ereport(ERROR,
-		(errcode(ERRCODE_SYNTAX_ERROR),
-		errmsg("URL must be specified")
-		));
-	if(!*jarfilename)
-		ereport(ERROR,
-		(errcode(ERRCODE_SYNTAX_ERROR),
-		errmsg("JAR file name must be specified")
-		));
 }
 
 #if (PG_VERSION_NUM < 90200)
@@ -926,6 +936,6 @@ jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, F
 static void
 jdbcGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 {
-	SIGINTInterruptCheckProcess();	
+	SIGINTInterruptCheckProcess();
 }
 #endif
