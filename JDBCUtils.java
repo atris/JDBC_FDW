@@ -29,7 +29,7 @@ public class JDBCUtils{
 	private Statement sql;
 	private String[] Iterate;
 	private static JDBCDriverLoader JDBC_Driver_Loader;
-public void
+public String
 Initialize(String[] ar1) throws IOException
 {       
 	DatabaseMetaData dbmd;
@@ -39,8 +39,10 @@ Initialize(String[] ar1) throws IOException
 	File JarFile = new File(ar1[6]);
 	Driver JDBCDriver = null;
 	String url = ar1[2];
-  	String userName = ar1[3]; 
+  	String userName = ar1[3];
   	String password = ar1[4];
+	StringWriter exception_stack_trace_string_writer = new StringWriter();
+	PrintWriter exception_stack_trace_print_writer = new PrintWriter(exception_stack_trace_string_writer);
 
   	NumberOfColumns = 0;
   	conn = null;
@@ -91,8 +93,11 @@ Initialize(String[] ar1) throws IOException
   		Iterate=new String[NumberOfColumns];
 	}catch (Exception e)
 	  {
-  	  	e.printStackTrace();
+  	  	e.printStackTrace(exception_stack_trace_print_writer);
+		return new String(exception_stack_trace_string_writer.toString());
 	  }
+
+return null;
 }
 public String[] 
 ReturnResultSet()

@@ -668,6 +668,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	jclass 			JDBCUtilsClass;
 	jclass		 	JavaString;
 	jstring 		StringArray[7];
+	jstring 		initialize_result = NULL;
 	jmethodID		id_initialize;
 	jobjectArray		arg_array;
 	int 			counter = 0;
@@ -676,6 +677,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	char 			*querytimeoutstr = NULL;
 	char 			*jar_classpath;
 	char 			strpkglibdir[] = STR_PKGLIBDIR;
+	char 			*initialize_result_cstring = NULL;
 	
 	SIGINTInterruptCheckProcess();
 
@@ -707,7 +709,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 		elog(ERROR,"JDBCUtilsClass is NULL");
 	}
 
-	id_initialize = (*env)->GetMethodID(env, JDBCUtilsClass, "Initialize", "([Ljava/lang/String;)V");
+	id_initialize = (*env)->GetMethodID(env, JDBCUtilsClass, "Initialize", "([Ljava/lang/String;)Ljava/lang/String;");
 	if (id_initialize == NULL) 
 	{
 		elog(ERROR,"id_initialize is NULL");
@@ -762,7 +764,13 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 		elog(ERROR,"java_call is NULL");
 	}
 
-	(*env)->CallObjectMethod(env,java_call,id_initialize,arg_array);
+	initialize_result=(*env)->CallObjectMethod(env,java_call,id_initialize,arg_array);
+	if(initialize_result!=NULL)
+	{
+		initialize_result_cstring=ConvertStringToCString((jobject)initialize_result);
+		elog(ERROR,"%s",initialize_result_cstring);
+	}
+
 	node->fdw_state = (void *) festate;
 	festate->NumberOfColumns=(*env)->GetIntField(env, java_call, id_numberofcolumns);
 
