@@ -80,7 +80,7 @@ static struct jdbcFdwOption valid_options[] =
 	{ "drivername",		ForeignServerRelationId },
 	{ "url",		ForeignServerRelationId },
 	{ "querytimeout",	ForeignServerRelationId },
-	{ "jarfilename",	ForeignServerRelationId },
+	{ "jarfile",	ForeignServerRelationId },
 	{ "username",		UserMappingRelationId },
 	{ "password",		UserMappingRelationId },
 	{ "query",		ForeignTableRelationId },
@@ -133,7 +133,7 @@ static void jdbcEndForeignScan(ForeignScanState *node);
  * Helper functions
  */
 static bool jdbcIsValidOption(const char *option, Oid context);
-static void jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytimeout, char **jarfilename, char **username, char **password, char **query, char **table);
+static void jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytimeout, char **jarfile, char **username, char **password, char **query, char **table);
 /*
  * Uses a String object's content to create an instance of C String
  */
@@ -253,7 +253,7 @@ JVMInitialization()
 		vm_args.version = 0x00010002;
 		vm_args.options = options;
 		vm_args.nOptions = 1;
-		vm_args.ignoreUnrecognized = JNI_TRUE;
+		vm_args.ignoreUnrecognized = JNI_FALSE;
 
 		/* Create the Java VM */
 		res = JNI_CreateJavaVM(&jvm, (void**)&env, &vm_args);
@@ -329,7 +329,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 	char		*svr_password = NULL;
 	char		*svr_query = NULL;
 	char		*svr_table = NULL;
-	char 		*svr_jarfilename = NULL;
+	char 		*svr_jarfile = NULL;
 	int 		svr_querytimeout = 0;	
 	ListCell	*cell;
 
@@ -393,14 +393,14 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_querytimeout = atoi(defGetString(def));
 		}
-		if (strcmp(def->defname, "jarfilename") == 0)
+		if (strcmp(def->defname, "jarfile") == 0)
 		{
-			if (svr_jarfilename)
+			if (svr_jarfile)
 				ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR), 
-					errmsg("conflicting or redundant options: jarfilename (%s)", defGetString(def))
+					errmsg("conflicting or redundant options: jarfile (%s)", defGetString(def))
 					));
 
-			svr_jarfilename = defGetString(def);
+			svr_jarfile = defGetString(def);
 		}
 		if (strcmp(def->defname, "username") == 0)
 		{
@@ -470,11 +470,11 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 		));
 	}
 
-	if(catalog == ForeignServerRelationId && svr_jarfilename == NULL)
+	if(catalog == ForeignServerRelationId && svr_jarfile == NULL)
 	{
 		ereport(ERROR,
 		(errcode(ERRCODE_SYNTAX_ERROR),
-		errmsg("JAR file name must be specified")
+		errmsg("JAR file must be specified")
 		));
 	}
 
@@ -510,7 +510,7 @@ jdbcIsValidOption(const char *option, Oid context)
  * Fetch the options for a jdbc_fdw foreign table.
  */
 static void
-jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytimeout, char **jarfilename, char **username, char **password, char **query, char **table)
+jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytimeout, char **jarfile, char **username, char **password, char **query, char **table)
 {
 	ForeignTable	*f_table;
 	ForeignServer	*f_server;
@@ -550,9 +550,9 @@ jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytime
 			*querytimeout = atoi(defGetString(def));
 		}
 
-		if (strcmp(def->defname, "jarfilename") == 0)
+		if (strcmp(def->defname, "jarfile") == 0)
 		{
-			*jarfilename = defGetString(def);
+			*jarfile = defGetString(def);
 		}
 
 		if (strcmp(def->defname, "password") == 0)
@@ -593,7 +593,7 @@ jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 	char 		*svr_query = NULL;
 	char 		*svr_table = NULL;
 	char 		*svr_url = NULL;
-	char 		*svr_jarfilename = NULL;
+	char 		*svr_jarfile = NULL;
 	int 		svr_querytimeout;
 	char		*query;
 
@@ -604,7 +604,7 @@ jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 	JVMInitialization();
 
 	/* Fetch options */
-	jdbcGetOptions(foreigntableid, &svr_drivername, &svr_url, &svr_querytimeout, &svr_jarfilename, &svr_username, &svr_password, &svr_query, &svr_table);
+	jdbcGetOptions(foreigntableid, &svr_drivername, &svr_url, &svr_querytimeout, &svr_jarfile, &svr_username, &svr_password, &svr_query, &svr_table);
 
 	
 	/* Build the query */
@@ -640,11 +640,11 @@ jdbcExplainForeignScan(ForeignScanState *node, ExplainState *es)
 	char		    *svr_password = NULL;
 	char		    *svr_query = NULL;
 	char		    *svr_table = NULL;
-	char 		    *svr_jarfilename = NULL;
+	char 		    *svr_jarfile = NULL;
 	int 		    svr_querytimeout;
 
 	/* Fetch options  */
-	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_drivername, &svr_url, &svr_querytimeout, &svr_jarfilename, &svr_username, &svr_password, &svr_query, &svr_table);
+	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_drivername, &svr_url, &svr_querytimeout, &svr_jarfile, &svr_username, &svr_password, &svr_query, &svr_table);
 	SIGINTInterruptCheckProcess();
 }
 
@@ -661,7 +661,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	char			*svr_password = NULL;
 	char			*svr_query = NULL;
 	char			*svr_table = NULL;
-	char 			*svr_jarfilename = NULL;
+	char 			*svr_jarfile = NULL;
 	int 			svr_querytimeout = 0;
 	jdbcFdwExecutionState   *festate;
 	char			*query;
@@ -682,7 +682,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	SIGINTInterruptCheckProcess();
 
 	/* Fetch options  */
-	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_drivername, &svr_url, &svr_querytimeout, &svr_jarfilename, &svr_username, &svr_password, &svr_query, &svr_table);
+	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_drivername, &svr_url, &svr_querytimeout, &svr_jarfile, &svr_username, &svr_password, &svr_query, &svr_table);
 
 	/* Build the query */
 	if (svr_query){
@@ -722,10 +722,10 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	}
 	
 	querytimeoutstr=(char*)palloc(sizeof(int));
-	jar_classpath = (char*)palloc(strlen(strpkglibdir)+strlen(svr_jarfilename)+2);
+	jar_classpath = (char*)palloc(strlen(strpkglibdir)+strlen(svr_jarfile)+2);
 
 	snprintf(querytimeoutstr,sizeof(int),"%d",svr_querytimeout);
-	snprintf(jar_classpath,(strlen(strpkglibdir)+strlen(svr_jarfilename)+2),"%s/%s",strpkglibdir,svr_jarfilename);
+	snprintf(jar_classpath,(strlen(svr_jarfile)+1),"%s",svr_jarfile);
 	
 	if(svr_username == NULL)
 	{
@@ -780,6 +780,8 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	}	
 	
 	(*env)->DeleteLocalRef(env, arg_array);
+	(*env)->ReleaseStringUTFChars(env, initialize_result, initialize_result_cstring);
+	(*env)->DeleteLocalRef(env, initialize_result);
 }
 
 /*

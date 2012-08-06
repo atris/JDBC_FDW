@@ -19,21 +19,22 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.MalformedURLException;
  
-public class JDBCDriverLoader extends URLClassLoader
-{
-public 
-JDBCDriverLoader(URL[] path)
-{
-	super (path);
-}
-public void 
-addPath(String path) throws MalformedURLException
-{
-	addURL (new URL (path));
-}
-public Class
-CheckIfClassIsLoaded(String ClassName)
-{
-	return findLoadedClass(ClassName);
-}
+public class JDBCDriverLoader extends URLClassLoader{
+	public 
+	JDBCDriverLoader(URL[] path)
+	{
+		super(path);
+	}
+
+	public void 
+	addPath(String path) throws MalformedURLException
+	{
+		addURL(new URL (path));
+	}
+
+	public Class
+	CheckIfClassIsLoaded(String ClassName)
+	{
+		return findLoadedClass(ClassName);
+	}
 }

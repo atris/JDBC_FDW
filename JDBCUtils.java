@@ -22,134 +22,145 @@ import java.net.URLClassLoader;
 import java.net.MalformedURLException;
 import java.util.*;
 public class JDBCUtils{
-	private ResultSet rs;
+	private ResultSet result_set;
 	private Connection conn;
 	private int NumberOfColumns;
 	private int NumberOfRows;
 	private Statement sql;
 	private String[] Iterate;
 	private static JDBCDriverLoader JDBC_Driver_Loader;
-public String
-Initialize(String[] ar1) throws IOException
-{       
-	DatabaseMetaData dbmd;
-	ResultSetMetaData r1;
-	Properties JDBCProperties;
-	Class JDBCDriverClass = null;
-	File JarFile = new File(ar1[6]);
-	Driver JDBCDriver = null;
-	String url = ar1[2];
-  	String userName = ar1[3];
-  	String password = ar1[4];
-	StringWriter exception_stack_trace_string_writer = new StringWriter();
-	PrintWriter exception_stack_trace_print_writer = new PrintWriter(exception_stack_trace_string_writer);
 
-  	NumberOfColumns = 0;
-  	conn = null;
+	public String
+	Initialize(String[] options_array) throws IOException
+	{       
+		DatabaseMetaData dbmd;
+		ResultSetMetaData result_set_metadata;
+		Properties JDBCProperties;
+		Class JDBCDriverClass = null;
+		File JarFile = new File(options_array[6]);
+		Driver JDBCDriver = null;
+		String DriverClassName = options_array[1];
+		String url = options_array[2];
+  		String userName = options_array[3];
+  		String password = options_array[4];
+		String query = options_array[0];
+		String jarfile_path = options_array[6];
+		int querytimeoutvalue = Integer.parseInt(options_array[5]);
+		StringWriter exception_stack_trace_string_writer = new StringWriter();
+		PrintWriter exception_stack_trace_print_writer = new PrintWriter(exception_stack_trace_string_writer);
 
-  	try 
-	{
-		if(JDBC_Driver_Loader == null){
-			JDBC_Driver_Loader = new JDBCDriverLoader(new URL[]{JarFile.toURI().toURL()});
-		}
-		else if(JDBC_Driver_Loader.CheckIfClassIsLoaded(ar1[1]) == null){
-			JDBC_Driver_Loader.addPath("jar:file://"+ar1[6]+"!/");
-		}
+  		NumberOfColumns = 0;
+  		conn = null;
 
-		JDBCDriverClass = JDBC_Driver_Loader.loadClass(ar1[1]);
+  		try 
+		{
+			if(JDBC_Driver_Loader == null)
+			{
+				JDBC_Driver_Loader = new JDBCDriverLoader(new URL[]{JarFile.toURI().toURL()});
+			}
+			else if(JDBC_Driver_Loader.CheckIfClassIsLoaded(DriverClassName) == null){
+				JDBC_Driver_Loader.addPath("jar:file://"+jarfile_path+"!/");
+			}	
 
-		JDBCDriver = (Driver)JDBCDriverClass.newInstance();
-		JDBCProperties = new Properties();
+			JDBCDriverClass = JDBC_Driver_Loader.loadClass(DriverClassName);
 
-		JDBCProperties.put("user", userName);
-		JDBCProperties.put("password", password);
+			JDBCDriver = (Driver)JDBCDriverClass.newInstance();
+			JDBCProperties = new Properties();
 
-		conn = JDBCDriver.connect(url, JDBCProperties);
+			JDBCProperties.put("user", userName);
+			JDBCProperties.put("password", password);
+
+			conn = JDBCDriver.connect(url, JDBCProperties);
   		
-  		dbmd = conn.getMetaData();
-  		System.out.println("Connection to "+dbmd.getDatabaseProductName()+" "+dbmd.getDatabaseProductVersion()+" successful.\n");
+  			dbmd = conn.getMetaData();
+  			System.out.println("Connection to "+dbmd.getDatabaseProductName()+" "+dbmd.getDatabaseProductVersion()+" successful.\n");
 
-  		sql = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+  			sql = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			try
+			{
+				if(querytimeoutvalue!=0)
+				{
+					sql.setQueryTimeout(querytimeoutvalue);
+				}
+
+			}
+			catch(Exception setquerytimeout_exception)
+			{
+		 		setquerytimeout_exception.printStackTrace(exception_stack_trace_print_writer);
+				return new String(exception_stack_trace_string_writer.toString());
+			}
+
+  			result_set = sql.executeQuery(query);
+
+  			result_set_metadata = result_set.getMetaData();
+  			NumberOfColumns = result_set_metadata.getColumnCount();
+  			Iterate = new String[NumberOfColumns];
+		}
+		catch (Exception initialize_exception)
+	  	{
+  	  		initialize_exception.printStackTrace(exception_stack_trace_print_writer);
+			return new String(exception_stack_trace_string_writer.toString());
+	  	}
+
+		return null;
+	}
+
+	public String[] 
+	ReturnResultSet()
+	{
+		int i = 0;
+
 		try
 		{
-			if(ar1[5] == null)
+			if(result_set.next())
 			{
-				sql.setQueryTimeout(5);
-			}
-			else
-			{
-				sql.setQueryTimeout(Integer.parseInt(ar1[5]));
-			}
+				for(i=0;i<NumberOfColumns;i++)
+				{
+    					Iterate[i] = result_set.getString(i+1);
+				}
 
-		}catch(Exception a)
-		 {
-		 	System.out.println("Query timeout shall not work");
-		 }
+				++NumberOfRows;				
 
-  		rs = sql.executeQuery(ar1[0]);
-
-  		r1=rs.getMetaData();
-  		NumberOfColumns=r1.getColumnCount();
-  		Iterate=new String[NumberOfColumns];
-	}catch (Exception e)
-	  {
-  	  	e.printStackTrace(exception_stack_trace_print_writer);
-		return new String(exception_stack_trace_string_writer.toString());
-	  }
-
-return null;
-}
-public String[] 
-ReturnResultSet()
-{
-	int i = 0;
-
-	try
-	{
-		if(rs.next())
-		{
-			for(i=0;i<NumberOfColumns;i++)
-			{
-    				Iterate[i]=rs.getString(i+1);
+				return Iterate;
 			}
 
-			++NumberOfRows;				
-
-			return Iterate;
 		}
+		catch (Exception returnresultset_exception)
+	 	{
+			returnresultset_exception.printStackTrace();
+	 	}
 
-	}catch (Exception e)
-	 {
-		e.printStackTrace();
-	 }
+		return null;
+	}
 
-return null;
-}
-public void 
-Close()
-{
-	try
+	public void 
+	Close()
 	{
-		rs.close();
-		conn.close();
-		rs = null;
-		conn = null;
-		Iterate = null;
-	}catch (Exception e) 
-	 {
-	 	e.printStackTrace();
-	 }
-}
-public void 
-Cancel()
-{
-	try
+		try
+		{
+			result_set.close();
+			conn.close();
+			result_set = null;
+			conn = null;
+			Iterate = null;
+		}
+		catch (Exception close_exception) 
+	 	{
+	 		close_exception.printStackTrace();
+	 	}
+	}
+
+	public void 
+	Cancel()
 	{
-		rs.close();
-		conn.close();
-	}catch(Exception a)
-	 {
-		a.printStackTrace();
-  	 }
-}
+		try
+		{
+			result_set.close();
+			conn.close();
+		}
+		catch(Exception cancel_exception)
+	 	{
+			cancel_exception.printStackTrace();
+  	 	}
+	}
 }
