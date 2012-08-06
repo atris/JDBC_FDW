@@ -80,7 +80,7 @@ static struct jdbcFdwOption valid_options[] =
 	{ "drivername",		ForeignServerRelationId },
 	{ "url",		ForeignServerRelationId },
 	{ "querytimeout",	ForeignServerRelationId },
-	{ "jarfile",	ForeignServerRelationId },
+	{ "jarfile",		ForeignServerRelationId },
 	{ "username",		UserMappingRelationId },
 	{ "password",		UserMappingRelationId },
 	{ "query",		ForeignTableRelationId },
