@@ -115,13 +115,13 @@ PG_FUNCTION_INFO_V1(jdbc_fdw_validator);
  * FDW callback routines
  */
 #if (PG_VERSION_NUM < 90200)
-	static FdwPlan *jdbcPlanForeignScan(Oid foreigntableid, 	PlannerInfo *root, RelOptInfo *baserel);
+	static FdwPlan *jdbcPlanForeignScan(Oid foreigntableid,PlannerInfo *root, RelOptInfo *baserel);
 #endif
 
 #if (PG_VERSION_NUM >= 90200)
-	static void jdbcGetForeignRelSize(PlannerInfo *root, RelOptInfo 	*baserel, Oid foreigntableid);
-	static void jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo 	*baserel, Oid foreigntableid);
-	static ForeignScan *jdbcGetForeignPlan(PlannerInfo *root, 	RelOptInfo *baserel, Oid foreigntableid, ForeignPath 	*best_path, List *tlist, List *scan_clauses);
+	static void jdbcGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid);
+	static void jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid);
+	static ForeignScan *jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses);
 #endif
 
 static void jdbcExplainForeignScan(ForeignScanState *node, ExplainState *es);
@@ -411,6 +411,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_drivername = defGetString(def);
 		}
+
 		if (strcmp(def -> defname, "url") == 0)
 		{
 			if (svr_url)
@@ -421,6 +422,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_url = defGetString(def);
 		}
+
 		if (strcmp(def -> defname, "querytimeout") == 0)
 		{
 			if (svr_querytimeout)
@@ -430,6 +432,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_querytimeout = atoi(defGetString(def));
 		}
+
 		if (strcmp(def -> defname, "jarfile") == 0)
 		{
 			if (svr_jarfile)
@@ -439,6 +442,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_jarfile = defGetString(def);
 		}
+
 		if (strcmp(def->defname, "maxheapsize") == 0)
 		{
 			if (svr_maxheapsize)
@@ -448,6 +452,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_maxheapsize = atoi(defGetString(def));
 		}
+
 		if (strcmp(def -> defname, "username") == 0)
 		{
 			if (svr_username)
@@ -457,6 +462,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_username = defGetString(def);
 		}
+
 		if (strcmp(def -> defname, "password") == 0)
 		{
 			if (svr_password)
