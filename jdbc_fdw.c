@@ -121,7 +121,14 @@ PG_FUNCTION_INFO_V1(jdbc_fdw_validator);
 #if (PG_VERSION_NUM >= 90200)
 	static void jdbcGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid);
 	static void jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid);
-	static ForeignScan *jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses);
+	static ForeignScan *jdbcGetForeignPlan(
+	    PlannerInfo *root, 
+	    RelOptInfo *baserel, 
+	    Oid foreigntableid, 
+	    ForeignPath *best_path, 
+	    List *tlist, 
+	    List *scan_clauses
+	);
 #endif
 
 static void jdbcExplainForeignScan(ForeignScanState *node, ExplainState *es);
@@ -134,7 +141,19 @@ static void jdbcEndForeignScan(ForeignScanState *node);
  * Helper functions
  */
 static bool jdbcIsValidOption(const char *option, Oid context);
-static void jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytimeout, char **jarfile, int* maxheapsize, char **username, char **password, char **query, char **table);
+static void jdbcGetOptions(
+    Oid foreigntableid, 
+    char **drivername, 
+    char **url, 
+    int *querytimeout, 
+    char **jarfile, 
+    int* maxheapsize, 
+    char **username, 
+    char **password, 
+    char **query, 
+    char **table
+);
+
 /*
  * Uses a String object's content to create an instance of C String
  */
@@ -163,7 +182,8 @@ static void SIGINTInterruptCheckProcess();
 static void
 SIGINTInterruptCheckProcess()
 {
-	if(InterruptFlag == true)
+
+	if (InterruptFlag == true)
 	{
 		jclass JDBCUtilsClass;
 		jmethodID id_cancel;
@@ -201,12 +221,12 @@ ConvertStringToCString(jobject java_cstring)
 	SIGINTInterruptCheckProcess();
 
 	JavaString = (*env)->FindClass(env, "java/lang/String");
-	if(!((*env) -> IsInstanceOf(env, java_cstring, JavaString)))
+	if (!((*env) -> IsInstanceOf(env, java_cstring, JavaString)))
 	{
 		elog(ERROR, "Object not an instance of String class");
 	}
 
-	if(java_cstring != NULL)
+	if (java_cstring != NULL)
 	{
 		StringPointer = (char*)(*env)->GetStringUTFChars(env, (jstring)java_cstring, 0);
 	}
@@ -215,7 +235,7 @@ ConvertStringToCString(jobject java_cstring)
 		StringPointer = NULL;
 	}
 
-	return StringPointer;
+	return (StringPointer);
 }
 
 /*
@@ -225,6 +245,7 @@ ConvertStringToCString(jobject java_cstring)
 static void 
 DestroyJVM()
 {
+
 	(*jvm) -> DestroyJavaVM(jvm);
 }
 
@@ -254,25 +275,27 @@ JVMInitialization(Oid foreigntableid)
 	int 		svr_querytimeout = 0;
 	int 		svr_maxheapsize = 0;
 
-	jdbcGetOptions(foreigntableid, 
-				&svr_drivername, 
-				&svr_url, 
-				&svr_querytimeout, 
-				&svr_jarfile,
-				&svr_maxheapsize, 
-				&svr_username, 
-				&svr_password, 
-				&svr_query, 
-				&svr_table);
+	jdbcGetOptions(
+	    foreigntableid, 
+	    &svr_drivername, 
+	    &svr_url, 
+	    &svr_querytimeout, 
+	    &svr_jarfile,
+	    &svr_maxheapsize, 
+	    &svr_username, 
+	    &svr_password, 
+	    &svr_query, 
+	    &svr_table
+	);
 
 	SIGINTInterruptCheckProcess();
 
-	if(FunctionCallCheck == false)
+	if (FunctionCallCheck == false)
 	{
 		classpath = (char*)palloc(strlen(strpkglibdir) + 19);
 		snprintf(classpath, strlen(strpkglibdir) + 19, "-Djava.class.path=%s", strpkglibdir);
 
-		if(svr_maxheapsize != 0)   /* If the user has given a value for setting the max heap size of the JVM */
+		if (svr_maxheapsize != 0)   /* If the user has given a value for setting the max heap size of the JVM */
 		{
 			options = (JavaVMOption*)palloc(sizeof(JavaVMOption)*2);
 			maxheapsizeoption = (char*)palloc(sizeof(int) + 6);
@@ -315,6 +338,7 @@ JVMInitialization(Oid foreigntableid)
 static void
 SIGINTInterruptHandler(int sig)
 {
+
 	InterruptFlag = true;
 }
 
@@ -506,7 +530,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 		}
 	}
 
-	if(catalog == ForeignServerRelationId && svr_drivername == NULL)
+	if (catalog == ForeignServerRelationId && svr_drivername == NULL)
 	{
 		ereport(ERROR,
 		(errcode(ERRCODE_SYNTAX_ERROR),
@@ -514,7 +538,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 		));
 	}
 	
-	if(catalog == ForeignServerRelationId && svr_url == NULL)
+	if (catalog == ForeignServerRelationId && svr_url == NULL)
 	{
 		ereport(ERROR,
 		(errcode(ERRCODE_SYNTAX_ERROR),
@@ -522,7 +546,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 		));
 	}
 
-	if(catalog == ForeignServerRelationId && svr_jarfile == NULL)
+	if (catalog == ForeignServerRelationId && svr_jarfile == NULL)
 	{
 		ereport(ERROR,
 		(errcode(ERRCODE_SYNTAX_ERROR),
@@ -530,7 +554,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 		));
 	}
 
-	if(catalog == ForeignTableRelationId && svr_query == NULL && svr_table == NULL)
+	if (catalog == ForeignTableRelationId && svr_query == NULL && svr_table == NULL)
 	{
 		ereport(ERROR,
 		(errcode(ERRCODE_SYNTAX_ERROR),
@@ -662,16 +686,18 @@ jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 	JVMInitialization(foreigntableid);
 
 	/* Fetch options */
-	jdbcGetOptions(foreigntableid, 
-		       		&svr_drivername, 
-		       		&svr_url, 
-		       		&svr_querytimeout, 
-		       		&svr_jarfile,
-				&svr_maxheapsize, 
-		       		&svr_username, 
-		       		&svr_password, 
-		       		&svr_query, 
-		       		&svr_table);
+	jdbcGetOptions(
+	    foreigntableid, 
+	    &svr_drivername, 
+	    &svr_url, 
+	    &svr_querytimeout, 
+	    &svr_jarfile,
+	    &svr_maxheapsize, 
+	    &svr_username, 
+	    &svr_password, 
+	    &svr_query, 
+	    &svr_table
+	);
 	/* Build the query */
 	if (svr_query)
 	{
@@ -688,7 +714,7 @@ jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 		snprintf(query, len, "EXPLAIN SELECT * FROM %s", svr_table);
 	}
 
-	return fdwplan;
+	return (fdwplan);
 }
 #endif
 
@@ -710,16 +736,18 @@ jdbcExplainForeignScan(ForeignScanState *node, ExplainState *es)
 	int 		    svr_maxheapsize = 0;
 
 	/* Fetch options  */
-	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), 
-				&svr_drivername, 
-				&svr_url, 
-				&svr_querytimeout, 
-				&svr_jarfile,
-				&svr_maxheapsize, 
-				&svr_username, 
-				&svr_password, 
-				&svr_query, 
-				&svr_table);
+	jdbcGetOptions(
+	    RelationGetRelid(node->ss.ss_currentRelation), 
+	    &svr_drivername, 
+	    &svr_url, 
+	    &svr_querytimeout, 
+	    &svr_jarfile,
+	    &svr_maxheapsize, 
+	    &svr_username, 
+	    &svr_password, 
+	    &svr_query, 
+	    &svr_table
+	);
 
 	SIGINTInterruptCheckProcess();
 }
@@ -759,19 +787,22 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	SIGINTInterruptCheckProcess();
 
 	/* Fetch options  */
-	jdbcGetOptions(RelationGetRelid(node->ss.ss_currentRelation), 
-				&svr_drivername, 
-				&svr_url, 
-				&svr_querytimeout, 
-				&svr_jarfile,
-				&svr_maxheapsize, 
-				&svr_username, 
-				&svr_password, 
-				&svr_query, 
-				&svr_table);
+	jdbcGetOptions(
+	    RelationGetRelid(node->ss.ss_currentRelation), 
+	    &svr_drivername, 
+	    &svr_url, 
+	    &svr_querytimeout, 
+	    &svr_jarfile,
+	    &svr_maxheapsize, 
+	    &svr_username, 
+	    &svr_password, 
+	    &svr_query, 
+	    &svr_table
+	);
 
 	/* Build the query */
-	if (svr_query){
+	if (svr_query != NULL)
+	{
 		query = svr_query;
 	}
 	else
@@ -802,7 +833,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	}
 
 	id_numberofcolumns = (*env)->GetFieldID(env, JDBCUtilsClass, "NumberOfColumns" , "I");
-	if(id_numberofcolumns == NULL)
+	if (id_numberofcolumns == NULL)
 	{
 		elog(ERROR, "id_numberofcolumns is NULL");
 	}
@@ -813,12 +844,12 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	snprintf(querytimeoutstr, sizeof(int), "%d", svr_querytimeout);
 	snprintf(jar_classpath, (strlen(svr_jarfile) + 1), "%s", svr_jarfile);
 	
-	if(svr_username == NULL)
+	if (svr_username == NULL)
 	{
 		svr_username = "";
 	}
 
-	if(svr_password == NULL)
+	if (svr_password == NULL)
 	{
 		svr_password = "";
 	}
@@ -839,19 +870,19 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 		elog(ERROR, "arg_array is NULL");
 	}
 
-	for(counter = 1;counter < 7;counter++)
+	for (counter = 1; counter < 7; counter++)
 	{		
 		(*env) -> SetObjectArrayElement(env, arg_array, counter, StringArray[counter]);
 	}
 	
 	java_call = (*env) -> AllocObject(env, JDBCUtilsClass);
-	if(java_call == NULL)
+	if (java_call == NULL)
 	{
 		elog(ERROR, "java_call is NULL");
 	}
 
 	initialize_result = (*env)->CallObjectMethod(env, java_call, id_initialize, arg_array);
-	if(initialize_result != NULL)
+	if (initialize_result != NULL)
 	{
 		initialize_result_cstring = ConvertStringToCString((jobject)initialize_result);
 		elog(ERROR, "%s", initialize_result_cstring);
@@ -860,7 +891,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	node->fdw_state = (void *) festate;
 	festate->NumberOfColumns = (*env)->GetIntField(env, java_call, id_numberofcolumns);
 
-	for(referencedeletecounter = 0;referencedeletecounter < 7;referencedeletecounter++)
+	for (referencedeletecounter = 0; referencedeletecounter < 7; referencedeletecounter++)
 	{
 		(*env)->DeleteLocalRef(env, StringArray[referencedeletecounter]);
 	}	
@@ -902,7 +933,7 @@ jdbcIterateForeignScan(ForeignScanState *node)
 
 
 	JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
-	if(JDBCUtilsClass == NULL) 
+	if (JDBCUtilsClass == NULL) 
 	{
 		elog(ERROR, "JDBCUtilsClass is NULL");
 	}
@@ -917,10 +948,10 @@ jdbcIterateForeignScan(ForeignScanState *node)
 	
 	java_rowarray = (*env) -> CallObjectMethod(env, java_call, id_returnresultset);
 
-	if(java_rowarray != NULL)
+	if (java_rowarray != NULL)
 	{
     
-		for(i = 0;i < (festate->NumberOfColumns);i++) 
+		for (i = 0; i < (festate->NumberOfColumns); i++) 
 		{
         		values[i] = ConvertStringToCString((jobject)(*env) -> GetObjectArrayElement(env, java_rowarray, i));
     		}
@@ -929,7 +960,7 @@ jdbcIterateForeignScan(ForeignScanState *node)
 		ExecStoreTuple(tuple, slot, InvalidBuffer, false);
 		++ (festate -> NumberOfRows);
 
-		for(j = 0;j < festate->NumberOfColumns;j++)
+		for (j = 0; j < festate->NumberOfColumns; j++)
 		{
 			tempString = (jstring)(*env) -> GetObjectArrayElement(env, java_rowarray,j);
 			(*env) -> ReleaseStringUTFChars(env, tempString, values[j]);
@@ -1022,7 +1053,7 @@ jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, F
 	scan_clauses = extract_actual_clauses(scan_clauses, false);
 
 	/* Create the ForeignScan node */
-	return make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL); 
+	return (make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL)); 
 }
 
 /*
