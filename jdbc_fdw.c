@@ -493,7 +493,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 			if (svr_table)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
-					errmsg("conflicting or redundant 					options: table (%s)", defGetString(def))
+					errmsg("conflicting or redundant options: table (%s)", defGetString(def))
 					));
 
 			svr_table = defGetString(def);
