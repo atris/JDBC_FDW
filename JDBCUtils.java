@@ -21,44 +21,51 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.MalformedURLException;
 import java.util.*;
-public class JDBCUtils{
-	private ResultSet result_set;
-	private Connection conn;
-	private int NumberOfColumns;
-	private int NumberOfRows;
-	private Statement sql;
-	private String[] Iterate;
+public class JDBCUtils
+{
+	private ResultSet 		result_set;
+	private Connection 		conn;
+	private int 			NumberOfColumns;
+	private int 			NumberOfRows;
+	private Statement 		sql;
+	private String[] 		Iterate;
 	private static JDBCDriverLoader JDBC_Driver_Loader;
 
+/*
+ * Initialize
+ *		Initiates the connection to the foreign database after setting 
+ *		up initial configuration and executes the query.
+ */
 	public String
 	Initialize(String[] options_array) throws IOException
 	{       
-		DatabaseMetaData dbmd;
-		ResultSetMetaData result_set_metadata;
-		Properties JDBCProperties;
-		Class JDBCDriverClass = null;
-		File JarFile = new File(options_array[6]);
-		Driver JDBCDriver = null;
-		String DriverClassName = options_array[1];
-		String url = options_array[2];
-  		String userName = options_array[3];
-  		String password = options_array[4];
-		String query = options_array[0];
-		String jarfile_path = options_array[6];
-		int querytimeoutvalue = Integer.parseInt(options_array[5]);
-		StringWriter exception_stack_trace_string_writer = new StringWriter();
-		PrintWriter exception_stack_trace_print_writer = new PrintWriter(exception_stack_trace_string_writer);
+		DatabaseMetaData 	db_metadata;
+		ResultSetMetaData 	result_set_metadata;
+		Properties 		JDBCProperties;
+		Class 			JDBCDriverClass = null;
+		Driver 			JDBCDriver = null;
+		String 			query = options_array[0];
+		String 			DriverClassName = options_array[1];
+		String 			url = options_array[2];
+  		String 			userName = options_array[3];
+  		String 			password = options_array[4];
+		int 			querytimeoutvalue = Integer.parseInt(options_array[5]);
+		File 			JarFile = new File(options_array[6]);
+		String 			jarfile_path = JarFile.toURI().toURL().toString();
+		StringWriter 		exception_stack_trace_string_writer = new StringWriter();
+		PrintWriter 		exception_stack_trace_print_writer = new PrintWriter(exception_stack_trace_string_writer);
 
   		NumberOfColumns = 0;
   		conn = null;
 
   		try 
 		{
-			if(JDBC_Driver_Loader == null)
+			if (JDBC_Driver_Loader == null)
 			{
 				JDBC_Driver_Loader = new JDBCDriverLoader(new URL[]{JarFile.toURI().toURL()});
 			}
-			else if(JDBC_Driver_Loader.CheckIfClassIsLoaded(DriverClassName) == null){
+			else if (JDBC_Driver_Loader.CheckIfClassIsLoaded(DriverClassName) == null)
+			{
 				JDBC_Driver_Loader.addPath("jar:file://"+jarfile_path+"!/");
 			}	
 
@@ -72,13 +79,14 @@ public class JDBCUtils{
 
 			conn = JDBCDriver.connect(url, JDBCProperties);
   		
-  			dbmd = conn.getMetaData();
-  			System.out.println("Connection to "+dbmd.getDatabaseProductName()+" "+dbmd.getDatabaseProductVersion()+" successful.\n");
+  			db_metadata = conn.getMetaData();
+  			System.out.println("Connection to "+db_metadata.getDatabaseProductName()+" "+db_metadata.getDatabaseProductVersion()
+				+" successful.\n");
 
   			sql = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			try
 			{
-				if(querytimeoutvalue!=0)
+				if (querytimeoutvalue != 0)
 				{
 					sql.setQueryTimeout(querytimeoutvalue);
 				}
@@ -87,7 +95,7 @@ public class JDBCUtils{
 			catch(Exception setquerytimeout_exception)
 			{
 		 		setquerytimeout_exception.printStackTrace(exception_stack_trace_print_writer);
-				return new String(exception_stack_trace_string_writer.toString());
+				return (new String(exception_stack_trace_string_writer.toString()));
 			}
 
   			result_set = sql.executeQuery(query);
@@ -99,29 +107,34 @@ public class JDBCUtils{
 		catch (Exception initialize_exception)
 	  	{
   	  		initialize_exception.printStackTrace(exception_stack_trace_print_writer);
-			return new String(exception_stack_trace_string_writer.toString());
+			return (new String(exception_stack_trace_string_writer.toString()));
 	  	}
 
 		return null;
 	}
 
+/*
+ * ReturnResultSet
+ *		Returns the result set that is returned from the foreign database
+ *		after execution of the query to C code.
+ */
 	public String[] 
 	ReturnResultSet()
 	{
-		int i = 0;
+		int 	i = 0;
 
 		try
 		{
-			if(result_set.next())
+			if (result_set.next())
 			{
-				for(i=0;i<NumberOfColumns;i++)
+				for (i = 0; i < NumberOfColumns; i++)
 				{
     					Iterate[i] = result_set.getString(i+1);
 				}
 
 				++NumberOfRows;				
 
-				return Iterate;
+				return (Iterate);
 			}
 
 		}
@@ -133,9 +146,14 @@ public class JDBCUtils{
 		return null;
 	}
 
+/*
+ * Close
+ *		Releases the resources used.
+ */
 	public void 
 	Close()
 	{
+
 		try
 		{
 			result_set.close();
@@ -150,9 +168,15 @@ public class JDBCUtils{
 	 	}
 	}
 
+/*
+ * Cancel
+ *		Cancels the query and releases the resources in case query
+ *		cancellation is requested by the user.
+ */
 	public void 
 	Cancel()
 	{
+
 		try
 		{
 			result_set.close();
