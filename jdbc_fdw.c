@@ -460,8 +460,8 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 		if (strcmp(def -> defname, "password") == 0)
 		{
 			if (svr_password)
-				ereport(ERROR, (errcode			                  (ERRCODE_SYNTAX_ERROR),
-				errmsg("conflicting or redundant options:               				password")
+				ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("conflicting or redundant options: password (%s)", defGetString(def))
 					));
 
 			svr_password = defGetString(def);
