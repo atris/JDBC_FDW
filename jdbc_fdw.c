@@ -215,8 +215,8 @@ SIGINTInterruptCheckProcess()
 static char*
 ConvertStringToCString(jobject java_cstring)
 {
-	jclass JavaString;
-	char *StringPointer;
+	jclass 	JavaString;
+	char 	*StringPointer;
 
 	SIGINTInterruptCheckProcess();
 
@@ -349,7 +349,7 @@ SIGINTInterruptHandler(int sig)
 Datum
 jdbc_fdw_handler(PG_FUNCTION_ARGS)
 {
-	FdwRoutine *fdwroutine = makeNode(FdwRoutine);
+	FdwRoutine 	*fdwroutine = makeNode(FdwRoutine);
 	
 	#if (PG_VERSION_NUM < 90200)
 	fdwroutine->PlanForeignScan = jdbcPlanForeignScan;
@@ -572,7 +572,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 static bool
 jdbcIsValidOption(const char *option, Oid context)
 {
-	struct jdbcFdwOption *opt;
+	struct jdbcFdwOption 	*opt;
 
 	for (opt = valid_options; opt->optname; opt++)
 	{
@@ -666,8 +666,7 @@ jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytime
 static FdwPlan*
 jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 {
-	FdwPlan *fdwplan = NULL;
-	
+	FdwPlan 	*fdwplan = NULL;
 	char		*svr_drivername = NULL;
 	char		*svr_username = NULL;
 	char		*svr_password = NULL;
