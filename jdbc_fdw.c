@@ -258,7 +258,7 @@ DestroyJVM()
 static void
 JVMInitialization(Oid foreigntableid)
 {
-	jint 		res=-100;/* Initializing the value of res so that we can check it later to see whether JVM has been correctly created or not*/
+	jint 		res = -5;/* Initializing the value of res so that we can check it later to see whether JVM has been correctly created or not*/
 	JavaVMInitArgs 	vm_args;
 	JavaVMOption 	*options;
 	static bool 	FunctionCallCheck = false;   /* This flag safeguards against multiple calls of JVMInitialization().*/
