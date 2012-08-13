@@ -30,6 +30,8 @@ public class JDBCUtils
 	private Statement 		sql;
 	private String[] 		Iterate;
 	private static JDBCDriverLoader JDBC_Driver_Loader;
+	private StringWriter 		exception_stack_trace_string_writer;
+	private PrintWriter 		exception_stack_trace_print_writer;
 
 /*
  * Initialize
@@ -50,19 +52,23 @@ public class JDBCUtils
   		String 			userName = options_array[3];
   		String 			password = options_array[4];
 		int 			querytimeoutvalue = Integer.parseInt(options_array[5]);
-		File 			JarFile = new File(options_array[6]);
-		String 			jarfile_path = JarFile.toURI().toURL().toString();
-		StringWriter 		exception_stack_trace_string_writer = new StringWriter();
-		PrintWriter 		exception_stack_trace_print_writer = new PrintWriter(exception_stack_trace_string_writer);
+
+		exception_stack_trace_string_writer = new StringWriter();
+ 		exception_stack_trace_print_writer = new PrintWriter(exception_stack_trace_string_writer);
 
   		NumberOfColumns = 0;
   		conn = null;
 
   		try 
 		{
+			File 	JarFile = new File(options_array[6]);
+			String 	jarfile_path = JarFile.toURI().toURL().toString();
+
 			if (JDBC_Driver_Loader == null)
 			{
-				JDBC_Driver_Loader = new JDBCDriverLoader(new URL[]{JarFile.toURI().toURL()});
+				/* If JDBC_Driver_Loader is being 									
+				 * created. */
+				JDBC_Driver_Loader = new JDBCDriverLoader(new URL[]{JarFile.toURI().toURL()}); 
 			}
 			else if (JDBC_Driver_Loader.CheckIfClassIsLoaded(DriverClassName) == null)
 			{
@@ -80,8 +86,6 @@ public class JDBCUtils
 			conn = JDBCDriver.connect(url, JDBCProperties);
   		
   			db_metadata = conn.getMetaData();
-  			System.out.println("Connection to "+db_metadata.getDatabaseProductName()+" "+db_metadata.getDatabaseProductVersion()
-				+" successful.\n");
 
   			sql = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			try
@@ -94,6 +98,11 @@ public class JDBCUtils
 			}
 			catch(Exception setquerytimeout_exception)
 			{
+				/* If an exception occurs,it is returned back to the
+			 	 * calling C code by returning a Java String object
+			 	 * that has the exception's stack trace.
+			 	 * If all goes well,a null String is returned. */
+
 		 		setquerytimeout_exception.printStackTrace(exception_stack_trace_print_writer);
 				return (new String(exception_stack_trace_string_writer.toString()));
 			}
@@ -106,6 +115,11 @@ public class JDBCUtils
 		}
 		catch (Exception initialize_exception)
 	  	{
+			/* If an exception occurs,it is returned back to the
+			 * calling C code by returning a Java String object
+			 * that has the exception's stack trace.
+			 * If all goes well,a null String is returned. */
+
   	  		initialize_exception.printStackTrace(exception_stack_trace_print_writer);
 			return (new String(exception_stack_trace_string_writer.toString()));
 	  	}
@@ -125,6 +139,8 @@ public class JDBCUtils
 
 		try
 		{
+			/* Row-by-row processing is done in jdbc_fdw.One row
+			 * at a time is returned to the C code. */
 			if (result_set.next())
 			{
 				for (i = 0; i < NumberOfColumns; i++)
@@ -133,6 +149,11 @@ public class JDBCUtils
 				}
 
 				++NumberOfRows;				
+				
+				/* The current row in result_set is returned
+				 * to the C code in a Java String array that
+				 * has the value of the fields of the current
+				 * row as it values. */
 
 				return (Iterate);
 			}
@@ -143,6 +164,7 @@ public class JDBCUtils
 			returnresultset_exception.printStackTrace();
 	 	}
 
+		/* All of result_set's rows have been returned to the C code. */
 		return null;
 	}
 
@@ -150,7 +172,7 @@ public class JDBCUtils
  * Close
  *		Releases the resources used.
  */
-	public void 
+	public String 
 	Close()
 	{
 
@@ -164,8 +186,16 @@ public class JDBCUtils
 		}
 		catch (Exception close_exception) 
 	 	{
-	 		close_exception.printStackTrace();
+			/* If an exception occurs,it is returned back to the
+			 * calling C code by returning a Java String object
+			 * that has the exception's stack trace.
+			 * If all goes well,a null String is returned. */
+
+	 		close_exception.printStackTrace(exception_stack_trace_print_writer);
+			return (new String(exception_stack_trace_string_writer.toString()));
 	 	}
+
+		return null;
 	}
 
 /*
@@ -173,7 +203,7 @@ public class JDBCUtils
  *		Cancels the query and releases the resources in case query
  *		cancellation is requested by the user.
  */
-	public void 
+	public String 
 	Cancel()
 	{
 
@@ -184,7 +214,15 @@ public class JDBCUtils
 		}
 		catch(Exception cancel_exception)
 	 	{
-			cancel_exception.printStackTrace();
+			/* If an exception occurs,it is returned back to the
+			 * calling C code by returning a Java String object
+			 * that has the exception's stack trace.
+			 * If all goes well,a null String is returned. */
+
+			cancel_exception.printStackTrace(exception_stack_trace_print_writer);
+			return (new String(exception_stack_trace_string_writer.toString()));
   	 	}
+
+		return null;
 	}
 }

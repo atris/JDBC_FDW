@@ -185,8 +185,10 @@ SIGINTInterruptCheckProcess()
 
 	if (InterruptFlag == true)
 	{
-		jclass JDBCUtilsClass;
-		jmethodID id_cancel;
+		jclass 		JDBCUtilsClass;
+		jmethodID 	id_cancel;
+		jstring 	cancel_result = NULL;
+		char 		*cancel_result_cstring = NULL;
 
 		JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
 		if (JDBCUtilsClass == NULL) 
@@ -194,16 +196,24 @@ SIGINTInterruptCheckProcess()
 			elog(ERROR, "JDBCUtilsClass is NULL");
 		}
 
-		id_cancel = (*env)->GetMethodID(env, JDBCUtilsClass, "Cancel", "()V");
+		id_cancel = (*env)->GetMethodID(env, JDBCUtilsClass, "Cancel", "()Ljava/lang/String;");
 		if (id_cancel == NULL) 
 		{
 			elog(ERROR, "id_cancel is NULL");
 		}
 		
-		(*env)->CallObjectMethod(env,java_call,id_cancel);
+		cancel_result = (*env)->CallObjectMethod(env,java_call,id_cancel);
+		if (cancel_result != NULL)
+		{
+			cancel_result_cstring = ConvertStringToCString((jobject)cancel_result);
+			elog(ERROR, "%s", cancel_result_cstring);
+		}
 
 		InterruptFlag = false;
 		elog(ERROR, "Query has been cancelled");
+
+		(*env)->ReleaseStringUTFChars(env, cancel_result, cancel_result_cstring);
+		(*env)->DeleteLocalRef(env, cancel_result);
 	}
 }
 
@@ -221,7 +231,7 @@ ConvertStringToCString(jobject java_cstring)
 	SIGINTInterruptCheckProcess();
 
 	JavaString = (*env)->FindClass(env, "java/lang/String");
-	if (!((*env) -> IsInstanceOf(env, java_cstring, JavaString)))
+	if (!((*env)->IsInstanceOf(env, java_cstring, JavaString)))
 	{
 		elog(ERROR, "Object not an instance of String class");
 	}
@@ -246,7 +256,7 @@ static void
 DestroyJVM()
 {
 
-	(*jvm) -> DestroyJavaVM(jvm);
+	(*jvm)->DestroyJavaVM(jvm);
 }
 
 /*
@@ -426,7 +436,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 				));
 		}
 
-		if (strcmp(def -> defname, "drivername") == 0)
+		if (strcmp(def->defname, "drivername") == 0)
 		{
 			if (svr_drivername)
 				ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR), 
@@ -436,7 +446,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 			svr_drivername = defGetString(def);
 		}
 
-		if (strcmp(def -> defname, "url") == 0)
+		if (strcmp(def->defname, "url") == 0)
 		{
 			if (svr_url)
 				ereport(ERROR, 
@@ -447,7 +457,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 			svr_url = defGetString(def);
 		}
 
-		if (strcmp(def -> defname, "querytimeout") == 0)
+		if (strcmp(def->defname, "querytimeout") == 0)
 		{
 			if (svr_querytimeout)
 				ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR), 
@@ -457,7 +467,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 			svr_querytimeout = atoi(defGetString(def));
 		}
 
-		if (strcmp(def -> defname, "jarfile") == 0)
+		if (strcmp(def->defname, "jarfile") == 0)
 		{
 			if (svr_jarfile)
 				ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR), 
@@ -477,7 +487,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 			svr_maxheapsize = atoi(defGetString(def));
 		}
 
-		if (strcmp(def -> defname, "username") == 0)
+		if (strcmp(def->defname, "username") == 0)
 		{
 			if (svr_username)
 				ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR),
@@ -487,7 +497,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 			svr_username = defGetString(def);
 		}
 
-		if (strcmp(def -> defname, "password") == 0)
+		if (strcmp(def->defname, "password") == 0)
 		{
 			if (svr_password)
 				ereport(ERROR, (errcode(ERRCODE_SYNTAX_ERROR),
@@ -496,7 +506,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_password = defGetString(def);
 		}
-		else if (strcmp(def -> defname, "query") == 0)
+		else if (strcmp(def->defname, "query") == 0)
 		{
 			if (svr_table)
 				ereport(ERROR,
@@ -512,7 +522,7 @@ jdbc_fdw_validator(PG_FUNCTION_ARGS)
 
 			svr_query = defGetString(def);
 		}
-		else if (strcmp(def -> defname, "table") == 0)
+		else if (strcmp(def->defname, "table") == 0)
 		{
 			if (svr_query)
 				ereport(ERROR,
@@ -611,22 +621,22 @@ jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytime
 	{
 		DefElem *def = (DefElem *) lfirst(lc);
 
-		if (strcmp(def -> defname, "drivername") == 0)
+		if (strcmp(def->defname, "drivername") == 0)
 		{
 			*drivername = defGetString(def);
 		}
 
-		if (strcmp(def -> defname, "username") == 0)
+		if (strcmp(def->defname, "username") == 0)
 		{
 			*username = defGetString(def);
 		}
 
-		if (strcmp(def -> defname, "querytimeout") == 0)
+		if (strcmp(def->defname, "querytimeout") == 0)
 		{
 			*querytimeout = atoi(defGetString(def));
 		}
 
-		if (strcmp(def -> defname, "jarfile") == 0)
+		if (strcmp(def->defname, "jarfile") == 0)
 		{
 			*jarfile = defGetString(def);
 		}
@@ -636,22 +646,22 @@ jdbcGetOptions(Oid foreigntableid, char **drivername, char **url, int *querytime
 			*maxheapsize = atoi(defGetString(def));
 		}
 
-		if (strcmp(def -> defname, "password") == 0)
+		if (strcmp(def->defname, "password") == 0)
 		{
 			*password = defGetString(def);
 		}
 
-		if (strcmp(def -> defname, "query") == 0)
+		if (strcmp(def->defname, "query") == 0)
 		{
 			*query = defGetString(def);
 		}
 
-		if (strcmp(def -> defname, "table") == 0)
+		if (strcmp(def->defname, "table") == 0)
 		{
 			*table = defGetString(def);
 		}
 
-		if (strcmp(def -> defname, "url") == 0)
+		if (strcmp(def->defname, "url") == 0)
 		{
 			*url = defGetString(def);
 		}
@@ -814,9 +824,9 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 
 	/* Stash away the state info we have already */
 	festate = (jdbcFdwExecutionState *) palloc(sizeof(jdbcFdwExecutionState));
-	festate -> query = query;
-	festate -> NumberOfColumns = 0;
-	festate -> NumberOfRows = 0;
+	festate->query = query;
+	festate->NumberOfColumns = 0;
+	festate->NumberOfRows = 0;
 
 	/* Connect to the server and execute the query */
 	JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
@@ -871,10 +881,10 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 
 	for (counter = 1; counter < 7; counter++)
 	{		
-		(*env) -> SetObjectArrayElement(env, arg_array, counter, StringArray[counter]);
+		(*env)->SetObjectArrayElement(env, arg_array, counter, StringArray[counter]);
 	}
 	
-	java_call = (*env) -> AllocObject(env, JDBCUtilsClass);
+	java_call = (*env)->AllocObject(env, JDBCUtilsClass);
 	if (java_call == NULL)
 	{
 		elog(ERROR, "java_call is NULL");
@@ -895,9 +905,9 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 		(*env)->DeleteLocalRef(env, StringArray[referencedeletecounter]);
 	}	
 	
-	(*env) -> DeleteLocalRef(env, arg_array);
-	(*env) -> ReleaseStringUTFChars(env, initialize_result, initialize_result_cstring);
-	(*env) -> DeleteLocalRef(env, initialize_result);
+	(*env)->DeleteLocalRef(env, arg_array);
+	(*env)->ReleaseStringUTFChars(env, initialize_result, initialize_result_cstring);
+	(*env)->DeleteLocalRef(env, initialize_result);
 }
 
 /*
@@ -916,15 +926,15 @@ jdbcIterateForeignScan(ForeignScanState *node)
 	int 		        i = 0;
 	int 			j = 0;
 	jstring 		tempString;
-	jdbcFdwExecutionState *festate = (jdbcFdwExecutionState *) node -> fdw_state;
-	TupleTableSlot *slot = node -> ss.ss_ScanTupleSlot;
+	jdbcFdwExecutionState *festate = (jdbcFdwExecutionState *) node->fdw_state;
+	TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 
 	/* Cleanup */
 	ExecClearTuple(slot);
 
 	SIGINTInterruptCheckProcess();
 
-	if ((*env) -> PushLocalFrame(env, (festate -> NumberOfColumns + 10)) < 0) 
+	if ((*env)->PushLocalFrame(env, (festate->NumberOfColumns + 10)) < 0) 
 	{
          /* frame not pushed, no PopLocalFrame needed */
 		elog(ERROR, "Error"); 
@@ -943,33 +953,33 @@ jdbcIterateForeignScan(ForeignScanState *node)
 		elog(ERROR, "id_returnresultset is NULL");
 	}
  
-	values=(char**)palloc(sizeof(char*)*(festate -> NumberOfColumns));
+	values=(char**)palloc(sizeof(char*)*(festate->NumberOfColumns));
 	
-	java_rowarray = (*env) -> CallObjectMethod(env, java_call, id_returnresultset);
+	java_rowarray = (*env)->CallObjectMethod(env, java_call, id_returnresultset);
 
 	if (java_rowarray != NULL)
 	{
     
 		for (i = 0; i < (festate->NumberOfColumns); i++) 
 		{
-        		values[i] = ConvertStringToCString((jobject)(*env) -> GetObjectArrayElement(env, java_rowarray, i));
+        		values[i] = ConvertStringToCString((jobject)(*env)->GetObjectArrayElement(env, java_rowarray, i));
     		}
 
-		tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(node -> ss.ss_currentRelation -> rd_att), values);
+		tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att), values);
 		ExecStoreTuple(tuple, slot, InvalidBuffer, false);
-		++ (festate -> NumberOfRows);
+		++ (festate->NumberOfRows);
 
 		for (j = 0; j < festate->NumberOfColumns; j++)
 		{
-			tempString = (jstring)(*env) -> GetObjectArrayElement(env, java_rowarray,j);
-			(*env) -> ReleaseStringUTFChars(env, tempString, values[j]);
-			(*env) -> DeleteLocalRef(env, tempString);
+			tempString = (jstring)(*env)->GetObjectArrayElement(env, java_rowarray,j);
+			(*env)->ReleaseStringUTFChars(env, tempString, values[j]);
+			(*env)->DeleteLocalRef(env, tempString);
 		}
 	
-		(*env) -> DeleteLocalRef(env, java_rowarray);
+		(*env)->DeleteLocalRef(env, java_rowarray);
 	}
 
-	(*env) -> PopLocalFrame(env, NULL);
+	(*env)->PopLocalFrame(env, NULL);
 
 return (slot);
 }
@@ -983,7 +993,9 @@ jdbcEndForeignScan(ForeignScanState *node)
 {
 	jmethodID 			id_close;
 	jclass 				JDBCUtilsClass;
-	jdbcFdwExecutionState *festate = (jdbcFdwExecutionState *) node -> fdw_state;
+	jstring 			close_result = NULL;
+	char 				*close_result_cstring = NULL;
+	jdbcFdwExecutionState *festate = (jdbcFdwExecutionState *) node->fdw_state;
 
 	SIGINTInterruptCheckProcess();
 
@@ -993,20 +1005,27 @@ jdbcEndForeignScan(ForeignScanState *node)
 		elog(ERROR, "JDBCUtilsClass is NULL");
 	}
 
-	id_close = (*env)->GetMethodID(env, JDBCUtilsClass, "Close", "()V");
+	id_close = (*env)->GetMethodID(env, JDBCUtilsClass, "Close", "()Ljava/lang/String;");
 	if (id_close == NULL) 
 	{
 		elog(ERROR, "id_close is NULL");
 	}
 
-	(*env) -> CallObjectMethod(env, java_call, id_close);
-	if (festate -> query)
+	close_result = (*env)->CallObjectMethod(env, java_call, id_close);
+	if (close_result != NULL)
 	{
-		pfree(festate -> query);
+		close_result_cstring = ConvertStringToCString((jobject)close_result);
+		elog(ERROR, "%s", close_result_cstring);
+	}
+	if (festate->query)
+	{
+		pfree(festate->query);
 		festate->query = 0;
 	}
 	
-	(*env) -> DeleteGlobalRef(env, java_call);
+	(*env)->ReleaseStringUTFChars(env, close_result, close_result_cstring);
+	(*env)->DeleteLocalRef(env, close_result);
+	(*env)->DeleteGlobalRef(env, java_call);
 }
 
 /*
