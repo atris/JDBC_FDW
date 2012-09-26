@@ -72,7 +72,7 @@ public class JDBCUtils
 			}
 			else if (JDBC_Driver_Loader.CheckIfClassIsLoaded(DriverClassName) == null)
 			{
-				JDBC_Driver_Loader.addPath("jar:file://"+jarfile_path+"!/");
+				JDBC_Driver_Loader.addPath(jarfile_path);
 			}	
 
 			JDBCDriverClass = JDBC_Driver_Loader.loadClass(DriverClassName);
