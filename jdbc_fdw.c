@@ -56,7 +56,6 @@ PG_MODULE_MAGIC;
 
 static JNIEnv *env;
 static JavaVM *jvm;
-static jobject java_call;   /* Used for calling methods of JDBCUtils Java class */
 static bool InterruptFlag;   /* Used for checking for SIGINT interrupt */
 
 
