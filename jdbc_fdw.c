@@ -99,6 +99,7 @@ typedef struct jdbcFdwExecutionState
 {
 	char		*query;
 	int		NumberOfRows;
+	jobject 	java_call;
 	int 		NumberOfColumns;
 } jdbcFdwExecutionState;
 
@@ -890,6 +891,8 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 		elog(ERROR, "java_call is NULL");
 	}
 
+	festate->java_call = java_call;
+
 	initialize_result = (*env)->CallObjectMethod(env, java_call, id_initialize, arg_array);
 	if (initialize_result != NULL)
 	{
@@ -928,6 +931,7 @@ jdbcIterateForeignScan(ForeignScanState *node)
 	jstring 		tempString;
 	jdbcFdwExecutionState *festate = (jdbcFdwExecutionState *) node->fdw_state;
 	TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
+	jobject 		java_call = festate->java_call;
 
 	/* Cleanup */
 	ExecClearTuple(slot);
@@ -996,6 +1000,7 @@ jdbcEndForeignScan(ForeignScanState *node)
 	jstring 			close_result = NULL;
 	char 				*close_result_cstring = NULL;
 	jdbcFdwExecutionState *festate = (jdbcFdwExecutionState *) node->fdw_state;
+	jobject 			java_call = festate->java_call;
 
 	SIGINTInterruptCheckProcess();
 
