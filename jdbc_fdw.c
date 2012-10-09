@@ -183,6 +183,7 @@ static void SIGINTInterruptCheckProcess();
 static void
 SIGINTInterruptCheckProcess()
 {
+
 	if (InterruptFlag == true)
 	{
 		jclass 		JDBCUtilsClass;
@@ -1053,7 +1054,7 @@ jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 	Cost 		startup_cost = 0;
 	Cost 		total_cost = 0;
 
-	//SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess();
 
 	/* Create a ForeignPath node and add it as only possible path */
 	add_path(baserel, (Path*)create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost, NIL, NULL, NIL)); 
@@ -1068,7 +1069,7 @@ jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, F
 {
 	Index 		scan_relid = baserel->relid;
 
-	//SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess();
 
 	JVMInitialization(foreigntableid);
 
@@ -1085,6 +1086,6 @@ jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, F
 static void
 jdbcGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 {
-	//SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess();
 }
 #endif
