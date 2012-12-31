@@ -25,6 +25,12 @@ JDBC_CONFIG = jdbc_config
 
 SHLIB_LINK = -ljvm
 
+UNAME = $(shell uname)
+
+ifeq ($(UNAME), Darwin)
+	SHLIB_LINK = -I/System/Library/Frameworks/JavaVM.framework/Headers -L/System/Library/Frameworks/JavaVM.framework/Libraries -ljvm -framework JavaVM
+endif
+
 TRGTS = JAVAFILES
 
 JAVA_SOURCES = \
