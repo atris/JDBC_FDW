@@ -129,6 +129,14 @@ PG_FUNCTION_INFO_V1(jdbc_fdw_validator);
 	    ForeignPath *best_path, 
 	    List *tlist, 
 	    List *scan_clauses
+#if PG_VERSION_NUM >= 90500
+,
+/*
+* Require PostgreSQL >= 9.5
+*/
+
+Plan *outer_plan
+#endif
 	);
 #endif
 
@@ -1057,7 +1065,12 @@ jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 	SIGINTInterruptCheckProcess();
 
 	/* Create a ForeignPath node and add it as only possible path */
-	add_path(baserel, (Path*)create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost, NIL, NULL, NIL)); 
+	add_path(baserel, (Path*)create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost, NIL, NULL, NULL
+#if PG_VERSION_NUM >= 90500
+,
+NIL
+#endif
+)); 
 }
 
 /*
@@ -1065,7 +1078,17 @@ jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
  *		(9.2+) Get a foreign scan plan node
  */
 static ForeignScan *
-jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses)
+jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses
+
+#if PG_VERSION_NUM >= 90500
+,
+/*
+* Require PostgreSQL >= 9.5
+*/
+
+Plan *outer_plan
+#endif
+)
 {
 	Index 		scan_relid = baserel->relid;
 
@@ -1076,7 +1099,14 @@ jdbcGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, F
 	scan_clauses = extract_actual_clauses(scan_clauses, false);
 
 	/* Create the ForeignScan node */
-	return (make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL)); 
+	return (make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL
+#if PG_VERSION_NUM >= 90500
+,
+NIL,
+NIL,
+outer_plan
+#endif
+)); 
 }
 
 /*
