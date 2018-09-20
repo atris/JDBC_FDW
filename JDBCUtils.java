@@ -178,8 +178,14 @@ public class JDBCUtils
 
 		try
 		{
-			result_set.close();
-			conn.close();
+			if (result_set != null)
+			{
+				result_set.close();
+			}
+			if (conn != null)
+			{
+				conn.close();
+			}
 			result_set = null;
 			conn = null;
 			Iterate = null;
