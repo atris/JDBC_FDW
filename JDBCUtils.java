@@ -113,7 +113,7 @@ public class JDBCUtils
   			NumberOfColumns = result_set_metadata.getColumnCount();
   			Iterate = new String[NumberOfColumns];
 		}
-		catch (Exception initialize_exception)
+		catch (Throwable initialize_exception)
 	  	{
 			/* If an exception occurs,it is returned back to the
 			 * calling C code by returning a Java String object
