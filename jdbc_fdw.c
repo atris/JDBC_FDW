@@ -279,7 +279,6 @@ JVMInitialization(Oid foreigntableid)
 {
 	jint 		res = -5;/* Initializing the value of res so that we can check it later to see whether JVM has been correctly created or not*/
 	JavaVMInitArgs 	vm_args;
-	JavaVMOption 	*options;
 	static bool 	FunctionCallCheck = false;   /* This flag safeguards against multiple calls of JVMInitialization().*/
 	char 		strpkglibdir[] = STR_PKGLIBDIR;
 	char 		*classpath;
@@ -311,29 +310,27 @@ JVMInitialization(Oid foreigntableid)
 
 	if (FunctionCallCheck == false)
 	{
+		vm_args.version = JNI_VERSION_1_2;
+		vm_args.ignoreUnrecognized = JNI_FALSE;
+		vm_args.nOptions = 2;
+
 		classpath = (char*)palloc(strlen(strpkglibdir) + 19);
 		snprintf(classpath, strlen(strpkglibdir) + 19, "-Djava.class.path=%s", strpkglibdir);
 
 		if (svr_maxheapsize != 0)   /* If the user has given a value for setting the max heap size of the JVM */
 		{
-			options = (JavaVMOption*)palloc(sizeof(JavaVMOption)*2);
 			maxheapsizeoption = (char*)palloc(sizeof(int) + 6);
 			snprintf(maxheapsizeoption, sizeof(int) + 6, "-Xmx%dm", svr_maxheapsize);
-
-			options[0].optionString = classpath;
-			options[1].optionString = maxheapsizeoption;
-			vm_args.nOptions = 2;
+			vm_args.nOptions++;
 		}
-		else
+
+		vm_args.options = (JavaVMOption*)palloc(sizeof(JavaVMOption)*vm_args.nOptions);
+		vm_args.options[0].optionString = "-Xrs";
+		vm_args.options[1].optionString = classpath;
+		if (maxheapsizeoption != NULL)
 		{
-			options = (JavaVMOption*)palloc(sizeof(JavaVMOption));
-			options[0].optionString = classpath;
-			vm_args.nOptions = 1;
+			vm_args.options[2].optionString = maxheapsizeoption;
 		}
-
-		vm_args.version = 0x00010002;
-		vm_args.options = options;
-		vm_args.ignoreUnrecognized = JNI_FALSE;
 
 		/* Create the Java VM */
 		res = JNI_CreateJavaVM(&jvm, (void**)&env, &vm_args);
@@ -348,6 +345,7 @@ JVMInitialization(Oid foreigntableid)
 		/* Register an on_proc_exit handler that shuts down the JVM.*/
 		on_proc_exit(DestroyJVM, 0);
 		FunctionCallCheck = true;
+		pfree(vm_args.options);
 	}
 }
 /*
