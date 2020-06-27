@@ -56,7 +56,6 @@ PG_MODULE_MAGIC;
 
 static JNIEnv *env;
 static JavaVM *jvm;
-jobject java_call;
 static bool InterruptFlag;   /* Used for checking for SIGINT interrupt */
 
 
@@ -183,47 +182,85 @@ static void SIGINTInterruptHandler(int);
  * SIGINT interrupt check and process function
  */
 static void SIGINTInterruptCheckProcess();
+/*
+ * Release all resources used by the execution of an FDW query.
+ */
+static void releaseJdbcFdwExecutionState(jdbcFdwExecutionState **);
+
+/*
+ * releaseJdbcFdwExecutionState
+ *		Returns all resources used by festate to the operating system.
+ */
+static void releaseJdbcFdwExecutionState(jdbcFdwExecutionState **festate)
+{
+	if ((*festate)->query)
+	{
+		pfree((*festate)->query);
+		(*festate)->query = 0;
+	}
+	(*env)->DeleteGlobalRef(env, (*festate)->java_call);
+	(*festate)->java_call = NULL;
+	pfree(*festate);
+	(*festate) = NULL;
+}
 
 /*
  * SIGINTInterruptCheckProcess
  *		Checks and processes if SIGINT interrupt occurs
  */
 static void
-SIGINTInterruptCheckProcess()
+SIGINTInterruptCheckProcess(jdbcFdwExecutionState **festate)
 {
+	jclass 		JDBCUtilsClass;
+	jmethodID 	id_cancel;
+	jstring 	cancel_result = NULL;
+	char 		*cancel_result_cstring = NULL;
 
-	if (InterruptFlag == true)
+	if (InterruptFlag == false)
 	{
-		jclass 		JDBCUtilsClass;
-		jmethodID 	id_cancel;
-		jstring 	cancel_result = NULL;
-		char 		*cancel_result_cstring = NULL;
-
-		JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
-		if (JDBCUtilsClass == NULL) 
-		{
-			elog(ERROR, "JDBCUtilsClass is NULL");
-		}
-
-		id_cancel = (*env)->GetMethodID(env, JDBCUtilsClass, "Cancel", "()Ljava/lang/String;");
-		if (id_cancel == NULL) 
-		{
-			elog(ERROR, "id_cancel is NULL");
-		}
-		
-		cancel_result = (*env)->CallObjectMethod(env,java_call,id_cancel);
-		if (cancel_result != NULL)
-		{
-			cancel_result_cstring = ConvertStringToCString((jobject)cancel_result);
-			elog(ERROR, "%s", cancel_result_cstring);
-		}
-
-		InterruptFlag = false;
-		elog(ERROR, "Query has been cancelled");
-
-		(*env)->ReleaseStringUTFChars(env, cancel_result, cancel_result_cstring);
-		(*env)->DeleteLocalRef(env, cancel_result);
+		return;
 	}
+
+	PG_TRY();
+	{
+		if (festate != NULL)
+		{
+			JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
+			if (JDBCUtilsClass == NULL) 
+			{
+				elog(ERROR, "JDBCUtilsClass is NULL");
+			}
+
+			id_cancel = (*env)->GetMethodID(env, JDBCUtilsClass, "Cancel", "()Ljava/lang/String;");
+			if (id_cancel == NULL) 
+			{
+				elog(ERROR, "id_cancel is NULL");
+			}
+		
+			cancel_result = (*env)->CallObjectMethod(env,(*festate)->java_call,id_cancel);
+			if (cancel_result != NULL)
+			{
+				cancel_result_cstring = ConvertStringToCString((jobject)cancel_result);
+				elog(ERROR, "%s", cancel_result_cstring);
+			}
+		}
+		elog(ERROR, "Query has been cancelled");
+	}
+	PG_CATCH();
+	{
+		InterruptFlag = false;
+
+		if (festate != NULL)
+		{
+			(*env)->ReleaseStringUTFChars(env, cancel_result, cancel_result_cstring);
+			(*env)->DeleteLocalRef(env, cancel_result);
+
+			releaseJdbcFdwExecutionState(festate);
+		}
+
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 }
 
 /*
@@ -236,8 +273,6 @@ ConvertStringToCString(jobject java_cstring)
 {
 	jclass 	JavaString;
 	char 	*StringPointer;
-
-	SIGINTInterruptCheckProcess();
 
 	JavaString = (*env)->FindClass(env, "java/lang/String");
 	if (!((*env)->IsInstanceOf(env, java_cstring, JavaString)))
@@ -306,8 +341,6 @@ JVMInitialization(Oid foreigntableid)
 	    &svr_table
 	);
 
-	SIGINTInterruptCheckProcess();
-
 	if (FunctionCallCheck == false)
 	{
 		vm_args.version = JNI_VERSION_1_2;
@@ -341,7 +374,6 @@ JVMInitialization(Oid foreigntableid)
 				 ));
 		}
 
-		InterruptFlag = false;
 		/* Register an on_proc_exit handler that shuts down the JVM.*/
 		on_proc_exit(DestroyJVM, 0);
 		FunctionCallCheck = true;
@@ -695,7 +727,7 @@ jdbcPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 	int 		svr_maxheapsize = 0;
 	char		*query;
 
-	SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess(NULL);
 
 	fdwplan = makeNode(FdwPlan);
 
@@ -765,7 +797,7 @@ jdbcExplainForeignScan(ForeignScanState *node, ExplainState *es)
 	    &svr_table
 	);
 
-	SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess((jdbcFdwExecutionState **)&(node->fdw_state));
 }
 
 /*
@@ -786,6 +818,7 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	int 			svr_maxheapsize = 0;
 	jdbcFdwExecutionState   *festate;
 	char			*query;
+	jobject 		java_call = NULL;
 	jclass 			JDBCUtilsClass;
 	jclass		 	JavaString;
 	jstring 		StringArray[7];
@@ -799,8 +832,8 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 	char 			*jar_classpath;
 	char 			strpkglibdir[] = STR_PKGLIBDIR;
 	char 			*initialize_result_cstring = NULL;
-	
-	SIGINTInterruptCheckProcess();
+
+	SIGINTInterruptCheckProcess(NULL);
 
 	/* Fetch options  */
 	jdbcGetOptions(
@@ -897,6 +930,11 @@ jdbcBeginForeignScan(ForeignScanState *node, int eflags)
 		elog(ERROR, "java_call is NULL");
 	}
 
+	java_call = (*env)->NewGlobalRef(env, java_call);
+	if (java_call == NULL)
+	{
+		elog(ERROR, "global reference to java_call is NULL");
+	}
 	festate->java_call = java_call;
 
 	initialize_result = (*env)->CallObjectMethod(env, java_call, id_initialize, arg_array);
@@ -942,7 +980,7 @@ jdbcIterateForeignScan(ForeignScanState *node)
 	/* Cleanup */
 	ExecClearTuple(slot);
 
-	SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess((jdbcFdwExecutionState **)&(node->fdw_state));
 
 	if ((*env)->PushLocalFrame(env, (festate->NumberOfColumns + 10)) < 0) 
 	{
@@ -1012,35 +1050,41 @@ jdbcEndForeignScan(ForeignScanState *node)
 	jdbcFdwExecutionState *festate = (jdbcFdwExecutionState *) node->fdw_state;
 	jobject 			java_call = festate->java_call;
 
-	SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess((jdbcFdwExecutionState **)&(node->fdw_state));
 
-	JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
-	if (JDBCUtilsClass == NULL) 
+	PG_TRY();
 	{
-		elog(ERROR, "JDBCUtilsClass is NULL");
-	}
+		JDBCUtilsClass = (*env)->FindClass(env, "JDBCUtils");
+		if (JDBCUtilsClass == NULL) 
+		{
+			elog(ERROR, "JDBCUtilsClass is NULL");
+		}
 
-	id_close = (*env)->GetMethodID(env, JDBCUtilsClass, "Close", "()Ljava/lang/String;");
-	if (id_close == NULL) 
-	{
-		elog(ERROR, "id_close is NULL");
-	}
+		id_close = (*env)->GetMethodID(env, JDBCUtilsClass, "Close", "()Ljava/lang/String;");
+		if (id_close == NULL) 
+		{
+			elog(ERROR, "id_close is NULL");
+		}
 
-	close_result = (*env)->CallObjectMethod(env, java_call, id_close);
-	if (close_result != NULL)
-	{
-		close_result_cstring = ConvertStringToCString((jobject)close_result);
-		elog(ERROR, "%s", close_result_cstring);
+		close_result = (*env)->CallObjectMethod(env, java_call, id_close);
+		if (close_result != NULL)
+		{
+			close_result_cstring = ConvertStringToCString((jobject)close_result);
+			elog(ERROR, "%s", close_result_cstring);
+		}
 	}
-	if (festate->query)
+	PG_CATCH();
 	{
-		pfree(festate->query);
-		festate->query = 0;
+		(*env)->ReleaseStringUTFChars(env, close_result, close_result_cstring);
+		(*env)->DeleteLocalRef(env, close_result);
+
+		releaseJdbcFdwExecutionState((jdbcFdwExecutionState **)&(node->fdw_state));
+		
+		PG_RE_THROW();
 	}
-	
-	(*env)->ReleaseStringUTFChars(env, close_result, close_result_cstring);
-	(*env)->DeleteLocalRef(env, close_result);
-	(*env)->DeleteGlobalRef(env, java_call);
+	PG_END_TRY();
+
+	releaseJdbcFdwExecutionState((jdbcFdwExecutionState **)&(node->fdw_state));
 }
 
 /*
@@ -1050,7 +1094,7 @@ jdbcEndForeignScan(ForeignScanState *node)
 static void
 jdbcReScanForeignScan(ForeignScanState *node)
 {
-	SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess((jdbcFdwExecutionState **)&(node->fdw_state));
 }
 
 #if (PG_VERSION_NUM >= 90200)
@@ -1064,7 +1108,7 @@ jdbcGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 	Cost 		startup_cost = 0;
 	Cost 		total_cost = 0;
 
-	SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess(NULL);
 
 	/* Create a ForeignPath node and add it as only possible path */
 	add_path(baserel, (Path*)create_foreignscan_path(root, baserel, 
@@ -1099,7 +1143,7 @@ Plan *outer_plan
 {
 	Index 		scan_relid = baserel->relid;
 
-	SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess(NULL);
 
 	JVMInitialization(foreigntableid);
 
@@ -1123,6 +1167,6 @@ outer_plan
 static void
 jdbcGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 {
-	SIGINTInterruptCheckProcess();
+	SIGINTInterruptCheckProcess(NULL);
 }
 #endif
