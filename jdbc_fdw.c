@@ -967,9 +967,12 @@ jdbcIterateForeignScan(ForeignScanState *node)
 {
 	char 			**values;
 	HeapTuple		tuple;
+	jmethodID		id_returnresultseterrormessage;
 	jmethodID		id_returnresultset;
 	jclass 			JDBCUtilsClass;
 	jobjectArray 		java_rowarray; 
+	jstring 			error_message = NULL;
+	char 				*error_message_cstring = NULL;
 	int 		        i = 0;
 	int 			j = 0;
 	jstring 		tempString;
@@ -999,6 +1002,12 @@ jdbcIterateForeignScan(ForeignScanState *node)
 	if (id_returnresultset == NULL)
 	{
 		elog(ERROR, "id_returnresultset is NULL");
+	}
+
+	id_returnresultseterrormessage = (*env)->GetMethodID(env, JDBCUtilsClass, "ReturnResultSetErrorMessage", "()Ljava/lang/String;");
+	if (id_returnresultset == NULL)
+	{
+		elog(ERROR, "id_returnresultseterrormessage is NULL");
 	}
  
 	values=(char**)palloc(sizeof(char*)*(festate->NumberOfColumns));
@@ -1032,6 +1041,13 @@ jdbcIterateForeignScan(ForeignScanState *node)
 	}
 
 	(*env)->PopLocalFrame(env, NULL);
+
+	error_message = (*env)->CallObjectMethod(env, java_call, id_returnresultseterrormessage);
+	if (error_message != NULL)
+	{
+		error_message_cstring = ConvertStringToCString((jobject)error_message);
+		elog(ERROR, "%s", error_message_cstring);
+	}
 
 return (slot);
 }
