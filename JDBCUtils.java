@@ -29,6 +29,7 @@ public class JDBCUtils
 	private int 			NumberOfRows;
 	private Statement 		sql;
 	private String[] 		Iterate;
+	private String			iterate_error_message;
 	private static JDBCDriverLoader JDBC_Driver_Loader;
 	private StringWriter 		exception_stack_trace_string_writer;
 	private PrintWriter 		exception_stack_trace_print_writer;
@@ -135,6 +136,7 @@ public class JDBCUtils
 	public String[] 
 	ReturnResultSet()
 	{
+		iterate_error_message = null;
 		int 	i = 0;
 
 		try
@@ -161,11 +163,24 @@ public class JDBCUtils
 		}
 		catch (Exception returnresultset_exception)
 	 	{
-			returnresultset_exception.printStackTrace();
+			returnresultset_exception.printStackTrace(exception_stack_trace_print_writer);
+			iterate_error_message = new String(exception_stack_trace_string_writer.toString());
 	 	}
 
 		/* All of result_set's rows have been returned to the C code. */
 		return null;
+	}
+
+/*
+ * ReturnResultSetErrorMessage
+ *		Returns any error resulting from iterating the result set.
+ *		Call after ReturnResultSet returns null to determine if an
+ *		error occurred or all results have been read.
+ */
+	public String
+	ReturnResultSetErrorMessage()
+	{
+		return iterate_error_message;
 	}
 
 /*
